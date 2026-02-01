@@ -12,7 +12,7 @@ const COMMANDS = [
   { trigger: '', target: 'geleverd', mode: 'add', label: 'Add geleverd' }
 ];
 
-export async function parseAndExecute(input) {
+export async function parseAndExecute(input, selectedGroup = null) {
   input = input.trim();
   if (!input) throw new Error('Empty command');
 
@@ -23,11 +23,15 @@ export async function parseAndExecute(input) {
   const rest = input.slice(cmd.trigger.length).trim();
   const parts = rest.split(/\s+/);
 
-  const alias = parts.shift().toLowerCase();
-  const groupName = ALIASES[alias];
+  let groupName = selectedGroup;
 
   if (!groupName) {
-    throw new Error('Unknown alias');
+    const alias = parts.shift()?.toLowerCase();
+    groupName = ALIASES[alias];
+  }
+
+  if (!groupName) {
+    throw new Error('Select an item or use alias');
   }
 
   const amounts = { g: 0, ct: 0, r: 0, b: 0 };

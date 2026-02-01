@@ -5,6 +5,7 @@ const list = document.getElementById('list');
 const cmd = document.getElementById('cmd');
 const preview = document.getElementById('preview');
 const feedback = document.getElementById('feedback');
+let selectedGroup = null;
 
 function hapticSuccess() {
   navigator.vibrate?.(20);
@@ -18,15 +19,31 @@ async function load() {
   list.innerHTML = '';
 
   groups.forEach(g => {
-    list.innerHTML += `
-      <div class="group">
-        <strong>${g.name}</strong><br>
-        Geleverd: g${g.geleverd.g} ct${g.geleverd.ct} r${g.geleverd.r} b${g.geleverd.b}<br>
+  const isSelected = g.name === selectedGroup;
+
+  list.innerHTML += `
+    <div class="group ${isSelected ? 'selected' : ''}"
+         data-name="${g.name}">
+      <strong>${g.name}</strong>
+      <div class="line">
+        Geleverd: g${g.geleverd.g} ct${g.geleverd.ct} r${g.geleverd.r} b${g.geleverd.b}
+      </div>
+      <div class="line">
         Retour: g${g.retour.g} ct${g.retour.ct} r${g.retour.r} b${g.retour.b}
       </div>
-    `;
+    </div>
+  `;
   });
 }
+
+list.addEventListener('click', e => {
+  const card = e.target.closest('.group');
+  if (!card) return;
+
+  selectedGroup = card.dataset.name;
+  load();
+});
+
 
 cmd.addEventListener('input', () => {
   preview.textContent = cmd.value;
@@ -34,7 +51,7 @@ cmd.addEventListener('input', () => {
 
 async function send() {
   try {
-    await parseAndExecute(cmd.value);
+    await parseAndExecute(cmd.value, selectedGroup);
     feedback.textContent = '✔ Saved';
 
     preview.classList.remove('pulse');

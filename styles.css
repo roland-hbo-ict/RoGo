@@ -1,32 +1,114 @@
-body {
+:root {
+  --bg: #0f0f12;
+  --panel: #18181d;
+  --card: #1f1f26;
+  --border: #2a2a33;
+  --text: #eaeaf0;
+  --muted: #9a9aa6;
+  --accent: #4ade80;
+  --danger: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
-  font-family: system-ui, sans-serif;
-  padding-bottom: 80px;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* App wrapper */
+#app {
+  min-height: 100dvh;
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+/* Group cards */
 .group {
-  padding: 8px;
-  border-bottom: 1px solid #ddd;
+  background: var(--card);
+  margin: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border 0.15s ease, box-shadow 0.15s ease;
 }
 
+.group.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.group strong {
+  font-size: 16px;
+}
+
+.group .line {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Preview + feedback */
+#preview {
+  font-size: 14px;
+  padding: 8px 12px;
+  color: var(--muted);
+}
+
+#feedback {
+  font-size: 14px;
+  padding: 0 12px 6px;
+}
+
+/* CLI container — ALWAYS VISIBLE */
 .cli-container {
   position: fixed;
-  bottom: 0;
   left: 0;
   right: 0;
-  background: #111;
+  bottom: 0;
+  z-index: 9999;
+
+  background: var(--panel);
+  border-top: 1px solid var(--border);
   padding: 8px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+
   display: flex;
   gap: 8px;
-  z-index: 1000;
 }
 
+/* CLI input */
 .cli-container input {
   flex: 1;
+  background: #0b0b0e;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
   font-size: 16px;
-  padding: 8px;
+  color: var(--text);
+  outline: none;
 }
 
+.cli-container input::placeholder {
+  color: #666;
+}
+
+/* Send button */
+.cli-container button {
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* Pulse animation */
 @keyframes pulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.03); }
