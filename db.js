@@ -124,6 +124,11 @@ export function generateAliases(groups) {
   return aliases;
 }
 
+export async function getGroups() {
+  await openDB();
+  return req(store('groups').getAll());
+}
+
 export async function getAliases() {
   const groups = await getGroups();
   return generateAliases(groups);
