@@ -12,10 +12,11 @@
  
 <header>
   <h1>RoGo</h1>
-  <span class="version">v1.2.1</span>
+  <span class="version">v1.3.0</span>
 </header>
  
 <main id="list"></main>
+<button id="addGroup">＋</button>
  
 <!-- Preview -->
 <div id="preview" class="preview"></div>
@@ -33,6 +34,17 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
+
+  const addBtn = document.getElementById('addGroup');
+
+  addBtn.onclick = async () => {
+    const name = prompt('New item name');
+    if (!name) return;
+
+    await addGroup(name.trim());
+    selectedGroup = name.trim();
+    load();
+  };
 </script>
  
 </body>

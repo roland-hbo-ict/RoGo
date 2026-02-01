@@ -80,3 +80,51 @@ export async function getGroupsWithTotals() {
     };
   });
 }
+
+export function generateAliases(groups) {
+  const names = groups.map(g => g.name.toLowerCase());
+  const aliases = {};
+
+  // 1. group by first letter
+  const buckets = {};
+  for (const name of names) {
+    const key = name[0];
+    buckets[key] ||= [];
+    buckets[key].push(name);
+  }
+
+  // 2. resolve each bucket independently
+  for (const bucket of Object.values(buckets)) {
+    let unresolved = [...bucket];
+    let length = 1;
+
+    while (unresolved.length) {
+      const map = {};
+
+      for (const name of unresolved) {
+        const prefix = name.slice(0, length);
+        map[prefix] ||= [];
+        map[prefix].push(name);
+      }
+
+      unresolved = [];
+
+      for (const [prefix, list] of Object.entries(map)) {
+        if (list.length === 1) {
+          aliases[prefix] = list[0];
+        } else {
+          unresolved.push(...list);
+        }
+      }
+
+      length++;
+    }
+  }
+
+  return aliases;
+}
+
+export async function getAliases() {
+  const groups = await getGroups();
+  return generateAliases(groups);
+}

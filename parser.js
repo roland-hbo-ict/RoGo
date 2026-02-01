@@ -1,10 +1,4 @@
-import { addEvent, ensureGroup } from './db.js';
-
-const ALIASES = {
-  s: 'soenda',
-  b: 'bakeryx',
-  z: 'shopz'
-};
+import { addEvent, ensureGroup, getAliases } from './db.js';
 
 const COMMANDS = [
   { trigger: '-', target: 'geleverd', mode: 'remove', label: 'Remove' },
@@ -26,8 +20,9 @@ export async function parseAndExecute(input, selectedGroup = null) {
   let groupName = selectedGroup;
 
   if (!groupName) {
+    const aliases = await getAliases();
     const alias = parts.shift()?.toLowerCase();
-    groupName = ALIASES[alias];
+    groupName = aliases[alias];
   }
 
   if (!groupName) {

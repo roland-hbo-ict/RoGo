@@ -53,6 +53,20 @@ html, body {
   margin-top: 4px;
 }
 
+#addGroup {
+  position: fixed;
+  bottom: 80px;
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  font-size: 32px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+}
+
 /* Preview + feedback */
 #preview {
   font-size: 14px;
