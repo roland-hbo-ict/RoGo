@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rogo - Offline Logistics Counter</title>
+ 
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+ 
+<header>
+  <h1>RoGo</h1>
+  <span class="version">v1.1.0</span>
+</header>
+ 
+<main id="list"></main>
+ 
+<!-- Preview -->
+<div id="preview" class="preview"></div>
+ 
+<!-- CLI -->
+<footer>
+  <input id="cmd" placeholder="s 15g 1b" autocomplete="off" />
+  <button id="send">➤</button>
+  <div id="feedback"></div>
+</footer>
+ 
+<script type="module" src="app.js"></script>
+ 
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>
+ 
+</body>
+</html>
