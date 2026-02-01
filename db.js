@@ -1,7 +1,7 @@
-export let db;
+let db;
 
 export async function openDB() {
-  if (db) return;
+  if (db) return db;
 
   return new Promise((resolve, reject) => {
     const req = indexedDB.open('logistics-db', 1);
@@ -15,7 +15,7 @@ export async function openDB() {
 
     req.onsuccess = e => {
       db = e.target.result;
-      resolve();
+      resolve(db);
     };
 
     req.onerror = () => reject(req.error);
@@ -26,44 +26,45 @@ function store(name, mode = 'readonly') {
   return db.transaction(name, mode).objectStore(name);
 }
 
-function reqToPromise(req) {
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+function req(req) {
+  return new Promise((res, rej) => {
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
   });
 }
 
 export async function ensureGroup(name) {
-  const groups = await reqToPromise(store('groups').getAll());
+  await openDB();
+  const groups = await req(store('groups').getAll());
+  const found = groups.find(g => g.name === name);
+  if (found) return found.id;
 
-  let g = groups.find(x => x.name === name);
-  if (!g) {
-    await reqToPromise(
-      store('groups', 'readwrite').add({
-        name,
-        createdAt: Date.now()
-      })
-    );
-    return ensureGroup(name);
-  }
-  return g.id;
+  const id = await req(
+    store('groups', 'readwrite').add({
+      name,
+      createdAt: Date.now()
+    })
+  );
+  return id;
 }
 
 export async function addEvent(evt) {
+  await openDB();
   evt.timestamp = Date.now();
-  await reqToPromise(store('events', 'readwrite').add(evt));
+  await req(store('events', 'readwrite').add(evt));
 }
 
 export async function getGroupsWithTotals() {
-  const groups = await reqToPromise(store('groups').getAll());
-  const events = await reqToPromise(store('events').getAll());
+  await openDB();
+  const groups = await req(store('groups').getAll());
+  const events = await req(store('events').getAll());
 
   return groups.map(g => {
-    const e = events.filter(x => x.groupId === g.id);
+    const ev = events.filter(e => e.groupId === g.id);
 
     const sum = target =>
-      e
-        .filter(x => x.target === target)
+      ev
+        .filter(e => e.target === target)
         .reduce(
           (a, b) => ({
             g: a.g + b.g,
@@ -83,8 +84,19 @@ export async function getGroupsWithTotals() {
 }
 
 export async function getAliases() {
-  const rows = await reqToPromise(store('aliases').getAll());
+  await openDB();
+  const rows = await req(store('aliases').getAll());
   const map = {};
-  rows.forEach(x => (map[x.short.toLowerCase()] = x.full));
+  rows.forEach(r => (map[r.short] = r.full));
   return map;
+}
+
+export async function saveAlias(short, full) {
+  await openDB();
+  await req(
+    store('aliases', 'readwrite').put({
+      short: short.toLowerCase(),
+      full
+    })
+  );
 }

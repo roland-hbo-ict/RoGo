@@ -1,64 +1,79 @@
-import { openDB, getGroupsWithTotals, getAliases } from './db.js';
-import { parseAndExecute, parsePreview } from './parser.js';
- 
+import { parseAndExecute } from './parser.js';
+import {
+  getGroupsWithTotals,
+  getAliases,
+  ensureGroup
+} from './db.js';
+
 const list = document.getElementById('list');
 const cmd = document.getElementById('cmd');
-const send = document.getElementById('send');
 const preview = document.getElementById('preview');
 const feedback = document.getElementById('feedback');
- 
+
+const context = {
+  aliases: {},
+  groups: {},
+  settings: {
+    autoCreate: true
+  }
+};
+
 function hapticSuccess() {
   navigator.vibrate?.(20);
 }
- 
 function hapticError() {
   navigator.vibrate?.([30, 20, 30]);
 }
- 
+
 async function load() {
-  await openDB();
+  context.aliases = await getAliases();
   const groups = await getGroupsWithTotals();
- 
+
   list.innerHTML = '';
   groups.forEach(g => {
+    context.groups[g.name] = g.id;
     list.innerHTML += `
-      <div class="card">
-        <div class="name">${g.name}</div>
-        <div class="row">Geleverd g${g.geleverd.g} ct${g.geleverd.ct}</div>
-        <div class="row retour">Retour g${g.retour.g} ct${g.retour.ct}</div>
-      </div>`;
+      <div class="group">
+        <strong>${g.name}</strong><br>
+        Geleverd: g${g.geleverd.g} ct${g.geleverd.ct} r${g.geleverd.r} b${g.geleverd.b}<br>
+        Retour: g${g.retour.g} ct${g.retour.ct} r${g.retour.r} b${g.retour.b}
+      </div>
+    `;
   });
 }
- 
-cmd.addEventListener('input', async () => {
-  const context = { aliases: await getAliases() };
-  const r = parsePreview(cmd.value, context);
- 
-  preview.className = 'preview';
-  if (!r) return preview.textContent = '';
- 
-  preview.textContent = r.text;
-  if (r.error) preview.classList.add('error');
-  else if (r.mode === 'remove') preview.classList.add('remove');
-  else if (r.target === 'retour') preview.classList.add('retour');
-  else preview.classList.add('add');
+
+cmd.addEventListener('input', () => {
+  preview.textContent = cmd.value;
 });
- 
-async function sendCmd() {
+
+async function send() {
   try {
-    await parseAndExecute(cmd.value, { aliases: await getAliases() });
-    cmd.value = '';
+    const res = await parseAndExecute(cmd.value, context);
+    feedback.textContent = '✔ Saved';
+
+    preview.classList.remove('pulse');
+    void preview.offsetWidth;
     preview.classList.add('pulse');
+
     hapticSuccess();
-    load();
+    cmd.value = '';
+    preview.textContent = '';
+    await load();
   } catch (e) {
-    feedback.textContent = e.message;
+    feedback.textContent = '⚠ ' + e.message;
+    preview.classList.remove('pulse');
+    void preview.offsetWidth;
     preview.classList.add('pulse');
     hapticError();
   }
 }
- 
-send.onclick = sendCmd;
-cmd.onkeydown = e => e.key === 'Enter' && sendCmd();
- 
-load();
+
+document.getElementById('send').onclick = send;
+cmd.addEventListener('keydown', e => {
+  if (e.key === 'Enter') send();
+});
+
+window.addEventListener('load', () => {
+  cmd.focus();
+  load();
+});

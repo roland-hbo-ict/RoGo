@@ -1,63 +1,64 @@
-const DEFAULT_COMMANDS = [
-  { trigger: '', target: 'geleverd', mode: 'add' },
-  { trigger: '-', target: 'geleverd', mode: 'remove' },
-  { trigger: '<', target: 'retour', mode: 'add' }
+import { addEvent, ensureGroup, saveAlias, openDB } from './db.js';
+
+const COMMANDS = [
+  { trigger: '-', target: 'geleverd', mode: 'remove', label: 'Remove' },
+  { trigger: '<', target: 'retour', mode: 'add', label: 'Add retour' },
+  { trigger: '', target: 'geleverd', mode: 'add', label: 'Add geleverd' }
 ];
- 
-const LABELS = {
-  g: 'groene-kratten',
-  ct: 'containers',
-  r: 'rode-kratten',
-  b: 'diepvries-box'
-};
- 
-import { addEvent, ensureGroup } from './db.js';
- 
+
 export async function parseAndExecute(input, context) {
-  const res = parsePreview(input, context);
-  if (res.error) throw new Error(res.text);
- 
-  const groupId = await ensureGroup(res.name);
- 
-  await addEvent({
-    groupId,
-    target: res.target,
-    ...res.amounts
-  });
-}
- 
-export function parsePreview(input, context) {
   input = input.trim();
-  if (!input) return null;
- 
-  const cmd = DEFAULT_COMMANDS
+  if (!input) throw new Error('Empty command');
+
+  const cmd = COMMANDS
     .sort((a, b) => b.trigger.length - a.trigger.length)
     .find(c => input.startsWith(c.trigger));
- 
-  if (!cmd) return { text: '⚠ Unknown command', error: true };
- 
-  const action = cmd.mode === 'remove' ? 'Remove' : 'Add';
-  const rest = input.slice(cmd.trigger.length).trim().split(/\s+/);
- 
-  const alias = rest.shift()?.toLowerCase();
-  const name = context.aliases[alias];
-  if (!name) return { text: '⚠ Unknown alias', error: true };
- 
-  const amounts = { g: 0, ct: 0, r: 0, b: 0 };
-  const parts = [];
- 
-  for (const p of rest) {
-    const m = p.match(/(\d+)(g|ct|r|b)/i);
-    if (!m) return { text: `⚠ Invalid amount: ${p}`, error: true };
-    amounts[m[2]] += cmd.mode === 'remove' ? -+m[1] : +m[1];
-    parts.push(`${m[1]}x-${LABELS[m[2]]}`);
+
+  const rest = input.slice(cmd.trigger.length).trim();
+  const parts = rest.split(/\s+/);
+
+  const alias = parts.shift().toLowerCase();
+
+  let groupName = context.aliases[alias];
+
+  // AUTO-CREATE ALIAS + GROUP
+  if (!groupName) {
+    if (!context.settings.autoCreate) {
+      throw new Error('Unknown alias');
+    }
+
+    groupName = alias;
+    await openDB();
+    const groupId = await ensureGroup(groupName);
+    await saveAlias(alias, groupName);
+
+    context.aliases[alias] = groupName;
+    context.groups[groupName] = groupId;
   }
- 
-  return {
-    text: `${action} ${cmd.target} ${name} ${parts.join(' ')}`,
-    mode: cmd.mode,
+
+  const amounts = { g: 0, ct: 0, r: 0, b: 0 };
+
+  for (const p of parts) {
+    const m = p.match(/^(\d+)(g|ct|r|b)$/i);
+    if (!m) throw new Error('Invalid amount: ' + p);
+    const val = parseInt(m[1], 10);
+    const key = m[2].toLowerCase();
+    amounts[key] += cmd.mode === 'remove' ? -val : val;
+  }
+
+  const groupId = context.groups[groupName] ?? (await ensureGroup(groupName));
+  context.groups[groupName] = groupId;
+
+  await addEvent({
+    groupId,
     target: cmd.target,
-    name,
+    ...amounts
+  });
+
+  return {
+    label: cmd.label,
+    target: cmd.target,
+    groupName,
     amounts
   };
 }
