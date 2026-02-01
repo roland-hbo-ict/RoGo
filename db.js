@@ -10,7 +10,6 @@ export async function openDB() {
       db = e.target.result;
       db.createObjectStore('groups', { keyPath: 'id', autoIncrement: true });
       db.createObjectStore('events', { keyPath: 'id', autoIncrement: true });
-      db.createObjectStore('aliases', { keyPath: 'short' });
     };
 
     req.onsuccess = e => {
@@ -26,10 +25,10 @@ function store(name, mode = 'readonly') {
   return db.transaction(name, mode).objectStore(name);
 }
 
-function req(req) {
+function req(r) {
   return new Promise((res, rej) => {
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
   });
 }
 
@@ -39,13 +38,12 @@ export async function ensureGroup(name) {
   const found = groups.find(g => g.name === name);
   if (found) return found.id;
 
-  const id = await req(
+  return req(
     store('groups', 'readwrite').add({
       name,
       createdAt: Date.now()
     })
   );
-  return id;
 }
 
 export async function addEvent(evt) {
@@ -81,22 +79,4 @@ export async function getGroupsWithTotals() {
       retour: sum('retour')
     };
   });
-}
-
-export async function getAliases() {
-  await openDB();
-  const rows = await req(store('aliases').getAll());
-  const map = {};
-  rows.forEach(r => (map[r.short] = r.full));
-  return map;
-}
-
-export async function saveAlias(short, full) {
-  await openDB();
-  await req(
-    store('aliases', 'readwrite').put({
-      short: short.toLowerCase(),
-      full
-    })
-  );
 }

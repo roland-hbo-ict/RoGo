@@ -25,21 +25,6 @@ body {
   flex: 1;
   font-size: 16px;
   padding: 8px;
-  pointer-events: auto;
-}
-
-.cli-container button {
-  font-size: 16px;
-}
-
-#preview {
-  padding: 6px;
-  font-size: 14px;
-}
-
-#feedback {
-  padding: 6px;
-  font-size: 14px;
 }
 
 @keyframes pulse {

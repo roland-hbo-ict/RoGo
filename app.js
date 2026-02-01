@@ -1,22 +1,10 @@
 import { parseAndExecute } from './parser.js';
-import {
-  getGroupsWithTotals,
-  getAliases,
-  ensureGroup
-} from './db.js';
+import { getGroupsWithTotals } from './db.js';
 
 const list = document.getElementById('list');
 const cmd = document.getElementById('cmd');
 const preview = document.getElementById('preview');
 const feedback = document.getElementById('feedback');
-
-const context = {
-  aliases: {},
-  groups: {},
-  settings: {
-    autoCreate: true
-  }
-};
 
 function hapticSuccess() {
   navigator.vibrate?.(20);
@@ -26,12 +14,10 @@ function hapticError() {
 }
 
 async function load() {
-  context.aliases = await getAliases();
   const groups = await getGroupsWithTotals();
-
   list.innerHTML = '';
+
   groups.forEach(g => {
-    context.groups[g.name] = g.id;
     list.innerHTML += `
       <div class="group">
         <strong>${g.name}</strong><br>
@@ -48,7 +34,7 @@ cmd.addEventListener('input', () => {
 
 async function send() {
   try {
-    const res = await parseAndExecute(cmd.value, context);
+    await parseAndExecute(cmd.value);
     feedback.textContent = '✔ Saved';
 
     preview.classList.remove('pulse');
@@ -69,9 +55,7 @@ async function send() {
 }
 
 document.getElementById('send').onclick = send;
-cmd.addEventListener('keydown', e => {
-  if (e.key === 'Enter') send();
-});
+cmd.addEventListener('keydown', e => e.key === 'Enter' && send());
 
 window.addEventListener('load', () => {
   cmd.focus();
