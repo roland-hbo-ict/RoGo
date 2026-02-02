@@ -99,14 +99,13 @@
 
 <script type="module" src="app.js"></script>
 <script>
+  // keep this in sync with manifest.json "version"
+  window.__ROGO_VERSION__ = "0.6.3 alpha";
+
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register(`./sw.js?v=${window.__ROGO_VERSION__}`);
+    navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(window.__ROGO_VERSION__)}`);
   }
 </script>
-<script>
-  window.__ROGO_VERSION__ = "0.1 alpha";
-</script>
-
 
 </body>
 </html>

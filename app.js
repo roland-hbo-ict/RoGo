@@ -87,7 +87,7 @@ function stopModeHintPulse() {
 
 async function loadVersion() {
   try {
-    const res = await fetch('manifest.json');
+    const res = await fetch('./manifest.json');
     const manifest = await res.json();
     const el = document.getElementById('version');
     if (el && manifest.version) el.textContent = 'v' + manifest.version;
