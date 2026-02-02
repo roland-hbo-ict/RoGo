@@ -49,7 +49,7 @@ export const DEFAULT_TOKENS = {
     value_eur: 100.00,
     defaultRef: 'c',
     userRef: 'c',
-    aliases: ['c', 'rc', 'cont', 'container'],
+    aliases: ['c', 'ct', 'rc', 'cont', 'container'],
     keywords: ['rolcontainer', 'container', 'totaalvers']
   },
 

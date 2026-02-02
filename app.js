@@ -91,15 +91,13 @@ function stopModeHintPulse() {
   modeHintTimer = null;
 }
 
-async function loadVersion() {
-  try {
-    const res = await fetch('./manifest.json');
-    const manifest = await res.json();
-    const el = document.getElementById('version');
-    if (el && manifest.version) el.textContent = 'v' + manifest.version;
-  } catch {
-    /* ignore */
-  }
+function loadVersion() {
+  const el = document.getElementById('version');
+  if (!el) return;
+
+  // Prefer the version resolved in index.html (manifest.json single source of truth)
+  const v = window.__ROGO_VERSION__ || localStorage.getItem('rogo_version') || 'dev';
+  el.textContent = `v${v}`;
 }
 
 function hapticSuccess() {
@@ -142,6 +140,21 @@ function formatTotals(totals) {
   return out.join(' ') || '…';
 }
 
+function tokenNameNL(defs, id) {
+  return defs?.[id]?.name_nl || id;
+}
+
+function tokenCliLabel(defs, id) {
+  // CLI-friendly: prefer full name if short enough, else use token.id, else truncate token.id
+  const full = tokenNameNL(defs, id);
+  if (full.length <= 18) return full;
+
+  const short = String(defs?.[id]?.id || id);
+  if (short.length <= 10) return short;
+
+  return short.slice(0, 6) + '…';
+}
+
 function renderMixedRows(current, delta, showDelta) {
   const order = TOKEN_ORDER;
 
@@ -180,13 +193,26 @@ function renderMixedRows(current, delta, showDelta) {
   return lines.join('') || `<div class="row muted">—</div>`;
 }
 
-
 function renderPlainRows(current) {
+  const defs = getTokenDefs();
   const order = TOKEN_ORDER;
+
   return (
     order
       .filter(k => (current[k] || 0) > 0)
-      .map(k => `<div class="row plain"><span class="k">${displayKey(getTokenDefs(), k)}</span><span class="res">${current[k]}</span></div>`)
+      .map(k => {
+        const name = tokenNameNL(defs, k);
+        const ref = displayKey(defs, k);
+
+        return `
+          <div class="statline">
+            <span class="statname">${name}</span>
+            <span class="statdots" aria-hidden="true"></span>
+            <span class="statqty">${current[k]}</span>
+            <span class="statref">${ref}</span>
+          </div>
+        `;
+      })
       .join('') || `<div class="row plain muted">—</div>`
   );
 }

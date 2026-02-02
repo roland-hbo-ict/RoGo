@@ -375,6 +375,44 @@ body.hand-left .version{
 
 
 
+/* token rows with dotted leaders */
+.statline{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1fr auto auto;
+  gap: 8px;
+  align-items: baseline;
+  margin: 2px 0;
+}
+
+.statname{
+  color: var(--text);
+  font-weight: 600;
+  /* allow wrapping for long Dutch names */
+  overflow-wrap: anywhere;
+}
+
+.statdots{
+  border-bottom: 1px dotted var(--border);
+  opacity: 0.7;
+  transform: translateY(-2px);
+}
+
+.statqty{
+  min-width: 36px;
+  text-align: right;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.statref{
+  min-width: 24px;
+  text-align: right;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+
+
 .mode.retour.active {
   background: var(--retour);
   border-color: var(--retour);

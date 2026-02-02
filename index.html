@@ -98,13 +98,31 @@
 </div>
 
 <script type="module" src="app.js"></script>
-<script>
-  // keep this in sync with manifest.json "version"
-  window.__ROGO_VERSION__ = "0.6.6 alpha";
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(window.__ROGO_VERSION__)}`);
-  }
+<script>
+  (async () => {
+    // Single source of truth: manifest.json "version"
+    let v = localStorage.getItem('rogo_version') || 'dev';
+
+    try {
+      const res = await fetch('./manifest.json', { cache: 'no-store' });
+      if (res.ok) {
+        const manifest = await res.json();
+        if (manifest && manifest.version) {
+          v = String(manifest.version);
+          localStorage.setItem('rogo_version', v);
+        }
+      }
+    } catch (e) {
+      // if offline / fetch blocked, use last known version
+    }
+
+    window.__ROGO_VERSION__ = v;
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(v)}`);
+    }
+  })();
 </script>
 
 </body>
