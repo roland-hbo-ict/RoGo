@@ -18,13 +18,6 @@ function hapticError() {
   navigator.vibrate?.([30, 20, 30]);
 }
 
-function hapticSuccess() {
-  navigator.vibrate?.(20);
-}
-function hapticError() {
-  navigator.vibrate?.([30, 20, 30]);
-}
-
 async function load() {
   const groups = await getGroupsWithTotals();
   list.innerHTML = '';
