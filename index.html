@@ -12,7 +12,7 @@
  
 <header>
   <h1>RoGo</h1>
-  <span class="version">v1.4.2</span>
+  <span class="version">v1.5</span>
 </header>
  
 <div id="app">
@@ -23,6 +23,7 @@
  
 <!-- Preview -->
 <div id="preview" class="preview"></div>
+<div id="chips" class="chips"></div>
  
 <!-- CLI -->
 <div class="cli-container">
@@ -30,6 +31,17 @@
   <button id="send">➤</button>
 </div>
 <div id="feedback"></div>
+
+<div id="modalBackdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h3>New item</h3>
+    <input id="newGroupName" placeholder="Item name" />
+    <div class="modal-actions">
+      <button id="cancelModal">Cancel</button>
+      <button id="confirmModal">Create</button>
+    </div>
+  </div>
+</div>
  
 <script type="module" src="app.js"></script>
 
@@ -38,7 +50,6 @@
     navigator.serviceWorker.register('sw.js');
   }
 </script>
-
 
 </body>
 </html>

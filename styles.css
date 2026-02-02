@@ -150,3 +150,92 @@ html, body {
 .cli-container input:disabled {
   opacity: 0.4;
 }
+
+.chips {
+  display: flex;
+  gap: 6px;
+  padding: 4px 12px 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.chip.good {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip.bad {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.totals {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.bar {
+  width: 3px;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.stats {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-backdrop.hidden {
+  display: none;
+}
+
+.modal {
+  background: var(--panel);
+  padding: 16px;
+  border-radius: 14px;
+  width: 90%;
+  max-width: 320px;
+}
+
+.modal input {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.modal-actions button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+}
