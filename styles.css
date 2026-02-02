@@ -53,6 +53,24 @@ html, body {
   margin-top: 4px;
 }
 
+.card {
+  padding: 12px;
+  border-radius: 12px;
+  background: #121212;
+  color: #fff;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.card-alias {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
 #addGroup {
   position: fixed;
   bottom: 80px;

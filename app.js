@@ -1,5 +1,5 @@
 import { parseAndExecute } from './parser.js';
-import { getGroupsWithTotals } from './db.js';
+import { getGroupsWithTotals, ensureGroup } from './db.js';
 
 const list = document.getElementById('list');
 const cmd = document.getElementById('cmd');
@@ -77,4 +77,16 @@ cmd.addEventListener('keydown', e => e.key === 'Enter' && send());
 window.addEventListener('load', () => {
   cmd.focus();
   load();
+});
+
+const addBtn = document.getElementById('addGroup');
+
+addBtn.addEventListener('click', async () => {
+  const name = prompt('New item name');
+  if (!name) return;
+
+  const clean = name.trim();
+  await ensureGroup(clean);
+  selectedGroup = clean;
+  await load();
 });

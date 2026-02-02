@@ -12,40 +12,33 @@
  
 <header>
   <h1>RoGo</h1>
-  <span class="version">v1.3.1</span>
+  <span class="version">v1.3.2</span>
 </header>
  
-<main id="list"></main>
+<div id="app">
+  <main id="list"></main>
+</div>
+
 <button id="addGroup">＋</button>
  
 <!-- Preview -->
 <div id="preview" class="preview"></div>
  
 <!-- CLI -->
-<footer>
+<div class="cli-container">
   <input id="cmd" placeholder="s 15g 1b" autocomplete="off" />
   <button id="send">➤</button>
-  <div id="feedback"></div>
-</footer>
+</div>
+<div id="feedback"></div>
  
 <script type="module" src="app.js"></script>
- 
+
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
-
-  const addBtn = document.getElementById('addGroup');
-
-  addBtn.onclick = async () => {
-    const name = prompt('New item name');
-    if (!name) return;
-
-    await addGroup(name.trim());
-    selectedGroup = name.trim();
-    load();
-  };
 </script>
- 
+
+
 </body>
 </html>

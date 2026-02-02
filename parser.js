@@ -1,4 +1,4 @@
-import { addEvent, ensureGroup, getAliases } from './db.js';
+import { addEvent, ensureGroup, getAliases, openDB } from './db.js';
 
 const COMMANDS = [
   { trigger: '-', target: 'geleverd', mode: 'remove', label: 'Remove' },
