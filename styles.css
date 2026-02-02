@@ -84,6 +84,27 @@ html, body {
   color: var(--muted);
 }
 
+#preview.pulse {
+  animation: pulse 0.35s ease-in-out;
+}
+
+.preview-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto 1fr;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.preview-row .delta {
+  color: var(--accent);
+}
+
+.preview-row .result {
+  font-weight: 600;
+  color: var(--text);
+}
+
+
 #feedback {
   font-size: 14px;
   padding: 0 12px 6px;
@@ -94,10 +115,6 @@ html, body {
   0% { transform: scale(1); }
   50% { transform: scale(1.03); }
   100% { transform: scale(1); }
-}
-
-#preview.pulse {
-  animation: pulse 0.35s ease-in-out;
 }
 
 /* MODE SELECTION */
@@ -180,18 +197,6 @@ html, body {
   color: var(--danger);
 }
 
-.totals {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.bar {
-  width: 3px;
-  background: var(--accent);
-  border-radius: 3px;
-}
-
 .stats {
   font-size: 14px;
   color: var(--muted);
@@ -243,11 +248,21 @@ html, body {
   border: none;
 }
 
-.section {
-  margin-bottom: 8px;
+.totals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 
-.section strong {
-  font-size: 12px;
-  color: var(--text);
+.section {
+  display: flex;
+  gap: 10px;
 }
+
+.section .bar {
+  width: 3px;
+  border-radius: 3px;
+}
+
+.section.geleverd .bar { background: var(--accent); }
+.section.retour   .bar { background: #60a5fa; } /* example */

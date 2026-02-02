@@ -39,12 +39,14 @@ async function load() {
           
         <strong>${g.name}</strong>
 
-        <div class="modes">
-          <button class="mode ${selectedMode === 'geleverd' ? 'active' : ''}"
-                  data-mode="geleverd">Geleverd</button>
-          <button class="mode ${selectedMode === 'retour' ? 'active' : ''}"
-                  data-mode="retour">Retour</button>
-        </div>
+        ${isSelected ? `
+          <div class="modes">
+            <button class="mode ${selectedMode === 'geleverd' ? 'active' : ''}"
+                    data-mode="geleverd">Geleverd</button>
+            <button class="mode ${selectedMode === 'retour' ? 'active' : ''}"
+                    data-mode="retour">Retour</button>
+          </div>
+        ` : ''}
 
         <div class="totals">
           <div class="bar"></div>
@@ -158,6 +160,12 @@ if (window.visualViewport && cli) {
 
 const modal = document.getElementById('modalBackdrop');
 const newGroupInput = document.getElementById('newGroupName');
+
+newGroupInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    document.getElementById('confirmModal').click();
+  }
+});
 
 document.getElementById('addGroup').onclick = () => {
   modal.classList.remove('hidden');
