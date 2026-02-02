@@ -26,6 +26,59 @@ function hapticError() {
   navigator.vibrate?.([30, 20, 30]);
 }
 
+function sumInputTotals(input) {
+  const totals = { g: 0, ct: 0, r: 0, b: 0 };
+  const parts = input.trim().split(/\s+/).filter(Boolean);
+
+  for (const p of parts) {
+    const m = p.match(/^(\d+)(g|ct|r|b)$/i);
+    if (!m) continue; // keep chips showing bad tokens, but preview totals ignore them
+    const val = Number(m[1]);
+    const key = m[2].toLowerCase();
+    totals[key] += val;
+  }
+  return totals;
+}
+
+function formatTotals(totals) {
+  const order = ['g', 'ct', 'r', 'b'];
+  const out = [];
+  for (const k of order) {
+    if (totals[k] > 0) out.push(`${totals[k]}${k}`);
+  }
+  return out.join(' ') || '…';
+}
+
+function renderComputedRows(current, delta) {
+  const order = ['g', 'ct', 'r', 'b'];
+  return order
+    .filter(k => (current[k] || 0) > 0 || (delta[k] || 0) > 0)
+    .map(k => {
+      const cur = current[k] || 0;
+      const d = delta[k] || 0;
+      const res = cur + d;
+      return `
+        <div class="row">
+          <span class="k">${k}</span>
+          <span class="cur">${cur}</span>
+          <span class="arrow">→</span>
+          <span class="delta">+${d}</span>
+          <span class="arrow">→</span>
+          <span class="res">${res}</span>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function renderPlainRows(current) {
+  const order = ['g', 'ct', 'r', 'b'];
+  return order
+    .filter(k => (current[k] || 0) > 0)
+    .map(k => `<div class="row plain"><span class="k">${k}</span><span class="res">${current[k]}</span></div>`)
+    .join('') || `<div class="row plain muted">—</div>`;
+}
+
 function renderStats(stats) {
   return Object.entries(stats)
     .filter(([, v]) => v > 0)
@@ -37,38 +90,50 @@ async function load() {
   const groups = await getGroupsWithTotals();
   list.innerHTML = '';
 
+  const deltaTotals = (selectedGroup && selectedMode) ? sumInputTotals(cmd.value) : { g:0, ct:0, r:0, b:0 };
+
   groups.forEach(g => {
     const isSelected = g.name === selectedGroup;
 
+    const showButtons = isSelected;
+
+    const geleverdBlock =
+      (isSelected && selectedMode === 'geleverd')
+        ? renderComputedRows(g.geleverd, deltaTotals)
+        : renderPlainRows(g.geleverd);
+
+    const retourBlock =
+      (isSelected && selectedMode === 'retour')
+        ? renderComputedRows(g.retour, deltaTotals)
+        : renderPlainRows(g.retour);
+
     list.innerHTML += `
-      <div class="group ${isSelected ? 'selected' : ''}"
-          data-name="${g.name}">
-          
+      <div class="group ${isSelected ? 'selected' : ''}" data-name="${g.name}">
         <strong>${g.name}</strong>
 
-        ${isSelected ? `
+        ${showButtons ? `
           <div class="modes">
             <button class="mode ${selectedMode === 'geleverd' ? 'active' : ''}"
                     data-mode="geleverd">Geleverd</button>
-            <button class="mode ${selectedMode === 'retour' ? 'active' : ''}"
+            <button class="mode retour ${selectedMode === 'retour' ? 'active' : ''}"
                     data-mode="retour">Retour</button>
           </div>
         ` : ''}
 
-        <div class="totals">
+        <div class="totals ${showButtons ? 'buttons-visible' : ''}">
           <div class="section geleverd">
             <div class="bar"></div>
             <div class="stats">
-              <strong>Geleverd</strong>
-              ${renderStats(g.geleverd)}
+              ${showButtons ? '' : '<div class="title">Geleverd</div>'}
+              ${geleverdBlock}
             </div>
           </div>
 
           <div class="section retour">
             <div class="bar"></div>
             <div class="stats">
-              <strong>Retour</strong>
-              ${renderStats(g.retour)}
+              ${showButtons ? '' : '<div class="title">Retour</div>'}
+              ${retourBlock}
             </div>
           </div>
         </div>
@@ -103,24 +168,32 @@ list.addEventListener('click', e => {
 });
 
 cmd.addEventListener('input', () => {
+  // chips stay per-token (exactly what you already like)
   const parts = cmd.value.trim().split(/\s+/);
   chipsEl.innerHTML = '';
 
   for (const p of parts) {
+    if (!p) continue;
     const m = p.match(/^(\d+)(g|ct|r|b)$/i);
     const chip = document.createElement('div');
     chip.className = 'chip ' + (m ? 'good' : 'bad');
-    chip.textContent = m ? `+${m[1]} ${m[2]}` : p;
+    chip.textContent = m ? `+${m[1]} ${m[2].toLowerCase()}` : p;
     chipsEl.appendChild(chip);
   }
-  
-  if (!selectedGroup || !selectedMode) {
+
+  // preview becomes total of what user typed
+  if (selectedGroup && selectedMode) {
+    const totals = sumInputTotals(cmd.value);
+    preview.textContent = `${selectedGroup} · ${selectedMode} → ${formatTotals(totals)}`;
+  } else {
     preview.textContent = '';
-    return;
   }
 
-  preview.textContent = `${selectedGroup} · ${selectedMode} → ${cmd.value || '…'}`;
+  // optional: live update card delta display (simple: reload)
+  // If you later want to avoid re-rendering everything, we can optimize.
+  load();
 });
+
 
 async function send() {
   try {
