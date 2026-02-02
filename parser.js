@@ -11,7 +11,6 @@ export async function parseAndExecute(input, groupName, mode) {
     throw new Error('Select item and mode');
   }
 
-  // Parse amounts
   const parts = input.split(/\s+/);
   const amounts = { g: 0, ct: 0, r: 0, b: 0 };
 
@@ -23,14 +22,11 @@ export async function parseAndExecute(input, groupName, mode) {
 
     const value = Number(match[1]);
     const key = match[2].toLowerCase();
-
     amounts[key] += value;
   }
 
-  // Ensure group exists
   const groupId = await ensureGroup(groupName);
 
-  // Store event
   await addEvent({
     groupId,
     target: mode, // 'geleverd' | 'retour'
