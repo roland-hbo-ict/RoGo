@@ -10,6 +10,14 @@ let selectedMode = null;
 
 const chipsEl = document.getElementById('chips');
 
+async function loadVersion() {
+  try {
+    const res = await fetch('manifest.json');
+    const manifest = await res.json();
+    document.getElementById('version').textContent = 'v' + manifest.version;
+  } catch {}
+}
+
 function hapticSuccess() {
   navigator.vibrate?.(20);
 }
@@ -41,10 +49,21 @@ async function load() {
         <div class="totals">
           <div class="bar"></div>
           <div class="stats">
-            <div>g {${g.geleverd.g}}</div>
-            <div>ct {${g.geleverd.ct}}</div>
-            <div>r {${g.geleverd.r}}</div>
-            <div>b {${g.geleverd.b}}</div>
+            <div class="section">
+              <strong>Geleverd</strong>
+              <div>g ${g.geleverd.g}</div>
+              <div>ct ${g.geleverd.ct}</div>
+              <div>r ${g.geleverd.r}</div>
+              <div>b ${g.geleverd.b}</div>
+            </div>
+
+            <div class="section">
+              <strong>Retour</strong>
+              <div>g ${g.retour.g}</div>
+              <div>ct ${g.retour.ct}</div>
+              <div>r ${g.retour.r}</div>
+              <div>b ${g.retour.b}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -116,20 +135,9 @@ document.getElementById('send').onclick = send;
 cmd.addEventListener('keydown', e => e.key === 'Enter' && send());
 
 window.addEventListener('load', () => {
+  loadVersion();
   cmd.focus();
   load();
-});
-
-const addBtn = document.getElementById('addGroup');
-
-addBtn.addEventListener('click', async () => {
-  const name = prompt('New item name');
-  if (!name) return;
-
-  const clean = name.trim();
-  await ensureGroup(clean);
-  selectedGroup = clean;
-  await load();
 });
 
 const cli = document.querySelector('.cli-container');

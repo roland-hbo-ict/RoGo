@@ -12,7 +12,7 @@
  
 <header>
   <h1>RoGo</h1>
-  <span class="version">v1.5.1</span>
+  <span class="version" id="version"></span>
 </header>
  
 <div id="app">
@@ -21,15 +21,15 @@
 
 <button id="addGroup">＋</button>
  
-<!-- Preview -->
-<div id="preview" class="preview"></div>
-<div id="chips" class="chips"></div>
- 
 <!-- CLI -->
 <div class="cli-container">
-  <input id="cmd" placeholder="s 15g 1b" autocomplete="off" />
+  <div id="preview"></div>
+  <div id="chips" class="chips"></div>
+
+  <input id="cmd" placeholder="15g 1ct" autocomplete="off" />
   <button id="send">➤</button>
 </div>
+
 <div id="feedback"></div>
 
 <div id="modalBackdrop" class="modal-backdrop hidden">
