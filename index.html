@@ -30,6 +30,7 @@
 
   <div id="preview"></div>
   <div id="chips" class="chips"></div>
+  <div id="suggestions" class="suggestions"></div>
 
   <div class="cli-row">
     <input id="cmd" placeholder="15g 1ct" autocomplete="off" />
@@ -90,7 +91,6 @@
       </select>
     </div>
 
-
     <div class="modal-actions">
       <button id="closeSettings" type="button">Close</button>
     </div>
@@ -100,7 +100,7 @@
 <script type="module" src="app.js"></script>
 <script>
   // keep this in sync with manifest.json "version"
-  window.__ROGO_VERSION__ = "0.6.3 alpha";
+  window.__ROGO_VERSION__ = "0.6.6 alpha";
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(window.__ROGO_VERSION__)}`);

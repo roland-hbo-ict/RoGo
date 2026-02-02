@@ -1,3 +1,5 @@
+import { TOKEN_ORDER } from './tokens.js';
+
 let db;
 
 export async function openDB() {
@@ -63,15 +65,12 @@ export async function getGroupsWithTotals() {
     const sum = target =>
       ev
         .filter(e => e.target === target)
-        .reduce(
-          (a, b) => ({
-            g: a.g + b.g,
-            ct: a.ct + b.ct,
-            r: a.r + b.r,
-            b: a.b + b.b
-          }),
-          { g: 0, ct: 0, r: 0, b: 0 }
-        );
+        .reduce((acc, evt) => {
+          for (const k of TOKEN_ORDER) {
+            acc[k] = (acc[k] || 0) + (Number(evt[k]) || 0);
+          }
+          return acc;
+        }, Object.fromEntries(TOKEN_ORDER.map(k => [k, 0])));
 
     return {
       ...g,

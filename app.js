@@ -1,12 +1,18 @@
 import { parseAndExecute } from './parser.js';
 import { getGroupsWithTotals, ensureGroup } from './db.js';
-import { TOKEN_ORDER, getTokenDefs, buildAliasMap, displayKey } from './tokens.js';
+import {
+  TOKEN_ORDER,
+  getTokenDefs,
+  buildAliasMap,
+  displayKey,
+  searchTokens,
+  formatTokenOption
+} from './tokens.js';
 
 const list = document.getElementById('list');
 const cmd = document.getElementById('cmd');
 const preview = document.getElementById('preview');
 const feedback = document.getElementById('feedback');
-
 const chipsEl = document.getElementById('chips');
 
 let selectedGroup = null;
@@ -112,7 +118,7 @@ function sumInputTotals(input) {
   const parts = input.trim().split(/\s+/).filter(Boolean);
 
   for (const p of parts) {
-    const m = p.match(/^(\d+)([a-z]{1,2})$/i);
+    const m = p.match(/^(\d+)([a-z]{1,12})$/i);
     if (!m) continue;
 
     const val = Number(m[1]);
@@ -189,18 +195,18 @@ function hasAnyDelta(delta) {
   return Object.values(delta).some(v => v > 0);
 }
 
+function emptyTotals() {
+  return Object.fromEntries(TOKEN_ORDER.map(k => [k, 0]));
+}
+
 async function load() {
   const groups = await getGroupsWithTotals();
   list.innerHTML = '';
 
-  const deltaTotals =
-    selectedGroup && selectedMode ? sumInputTotals(cmd.value) : { g: 0, ct: 0, r: 0, b: 0 };
-  const showDelta = selectedGroup && selectedMode && hasAnyDelta(deltaTotals);
-
   for (const g of groups) {
     const isSelected = g.name === selectedGroup;
 
-    const deltaTotals = selectedGroup && selectedMode ? sumInputTotals(cmd.value) : { g:0, ct:0, r:0, b:0 };
+    const deltaTotals = selectedGroup && selectedMode ? sumInputTotals(cmd.value) : emptyTotals();
     const showDelta = isSelected && !!selectedMode && hasAnyDelta(deltaTotals);
 
     const needsMode = isSelected && !selectedMode;
@@ -290,7 +296,7 @@ cmd.addEventListener('input', () => {
     if (!p) continue;
     const defs = getTokenDefs();
     const aliasMap = buildAliasMap(defs);
-    const m = p.match(/^(\d+)([a-z]{1,2})$/i);
+    const m = p.match(/^(\d+)([a-z]{1,12})$/i);
     const ok = !!(m && aliasMap[m[2].toLowerCase()]);
     
     const chip = document.createElement('div');
@@ -305,6 +311,47 @@ cmd.addEventListener('input', () => {
     preview.textContent = `${selectedGroup} · ${selectedMode} → ${formatTotals(totals)}`;
   } else {
     preview.textContent = '';
+  }
+
+    // --- suggestions (non-clickable for now) ---
+  if (suggestionsEl) suggestionsEl.innerHTML = '';
+
+  const defs = getTokenDefs();
+  const aliasMap = buildAliasMap(defs);
+
+  const cleaned = cmd.value.trim();
+  const parts2 = cleaned.split(/\s+/).filter(Boolean);
+  const last = parts2[parts2.length - 1] || '';
+
+  if (last && suggestionsEl) {
+    // If "11bier" -> suggest based on "bier"
+    const m2 = last.match(/^(\d+)([a-z]{1,12})$/i);
+    if (m2) {
+      const alias = m2[2].toLowerCase();
+      if (!aliasMap[alias]) {
+        const hits = searchTokens(defs, alias, 6);
+        for (const id of hits) {
+          const el = document.createElement('div');
+          el.className = 'suggestion';
+          el.textContent = formatTokenOption(defs, id);
+          suggestionsEl.appendChild(el);
+        }
+      }
+    } else {
+      // If "bier" -> show matches if ambiguous
+      const q = last.toLowerCase();
+      if (!aliasMap[q] && q.length >= 2) {
+        const hits = searchTokens(defs, q, 6);
+        if (hits.length >= 2) {
+          for (const id of hits) {
+            const el = document.createElement('div');
+            el.className = 'suggestion';
+            el.textContent = formatTokenOption(defs, id);
+            suggestionsEl.appendChild(el);
+          }
+        }
+      }
+    }
   }
 
   // simple: re-render for computed delta rows
@@ -406,6 +453,7 @@ const closeSettings = document.getElementById('closeSettings');
 const themeToggle = document.getElementById('themeToggle');
 const handToggle = document.getElementById('handToggle');
 const langSelect = document.getElementById('langSelect');
+const suggestionsEl = document.getElementById('suggestions');
 
 function applySettingsFromStorage() {
   const theme = localStorage.getItem('rogo_theme') || 'dark';

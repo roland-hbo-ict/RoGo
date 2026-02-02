@@ -14,7 +14,7 @@ export async function parseAndExecute(input, groupName, mode) {
   const amounts = Object.fromEntries(TOKEN_ORDER.map(k => [k, 0]));
 
   for (const p of parts) {
-    const match = p.match(/^(\d+)([a-z]{1,2})$/i);
+    const match = p.match(/^(\d+)([a-z]{1,12})$/i);
     if (!match) throw new Error(`Invalid amount: ${p}`);
 
     const value = Number(match[1]);

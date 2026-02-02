@@ -39,12 +39,6 @@ html, body {
   font-size: 150%;
 }
 
-.icon-btn{
-  position:absolute;
-  left: 10px;
-  top: 6px;
-}
-
 .version {
   position: absolute;
   top: 6px;
@@ -583,4 +577,23 @@ body.theme-light .group.selected{
 
 .group.selected .stats .title.mode.needs{
   animation: needsGlow 1.2s ease-in-out infinite;
+}
+
+.suggestions{
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion{
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  user-select: none;
+
+  /* not clickable yet */
+  cursor: default;
 }
