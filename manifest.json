@@ -1,7 +1,7 @@
 {
   "name": "Roland's Offline Logistics Counter",
   "short_name": "RoGo",
-  "version": "0.9.2 alpha",
+  "version": "0.5.10 alpha",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#020617",

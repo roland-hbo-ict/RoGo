@@ -119,6 +119,7 @@ function renderMixedRows(current, delta, showDelta) {
   return lines.join('') || `<div class="row muted">—</div>`;
 }
 
+
 function renderPlainRows(current) {
   const order = ['g', 'ct', 'r', 'b'];
   return (
@@ -131,42 +132,6 @@ function renderPlainRows(current) {
 
 function hasAnyDelta(delta) {
   return Object.values(delta).some(v => v > 0);
-}
-
-// Mixed view:
-// - If delta for a key > 0 -> show computed row
-// - Else if current > 0 -> show plain row
-function renderMixedRows(current, delta) {
-  const order = ['g', 'ct', 'r', 'b'];
-  return order
-    .filter(k => (delta[k] || 0) > 0 || (current[k] || 0) > 0)
-    .map(k => {
-      const cur = current[k] || 0;
-      const d = delta[k] || 0;
-
-      if (d > 0) {
-        const res = cur + d;
-        return `
-          <div class="row">
-            <span class="k">${k}</span>
-            <span class="cur">${cur}</span>
-            <span class="arrow">→</span>
-            <span class="delta">+${d}</span>
-            <span class="arrow">→</span>
-            <span class="res">${res}</span>
-          </div>
-        `;
-      }
-
-      // unchanged keys: plain (no +0)
-      return `
-        <div class="row">
-          <span class="k">${k}</span>
-          <span class="res">${cur}</span>
-        </div>
-      `;
-    })
-    .join('') || `<div class="row muted">—</div>`;
 }
 
 async function load() {
