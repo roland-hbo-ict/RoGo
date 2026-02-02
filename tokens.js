@@ -290,7 +290,7 @@ export function buildAliasMap(defs) {
 
 export function displayKey(defs, id) {
   const d = defs[id];
-  return (d?.userRef || d?.defaultRef || id).toLowerCase();
+  return (d?.defaultRef || d?.userRef || id).toLowerCase();
 }
 
 // --- Suggestion helpers ---

@@ -208,8 +208,10 @@ function renderPlainRows(current) {
           <div class="statline">
             <span class="statname">${name}</span>
             <span class="statdots" aria-hidden="true"></span>
-            <span class="statqty">${current[k]}</span>
-            <span class="statref">${ref}</span>
+            <span class="statend">
+              <span class="statqty">${current[k]}</span>
+              <span class="statref">${ref}</span>
+            </span>
           </div>
         `;
       })
