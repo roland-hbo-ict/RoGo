@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rogo - Offline Logistics Counter</title>
- 
+  <title>RoGo - Offline Logistics Counter</title>
+
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
- 
+
 <header class="topbar">
   <h1>RoGo</h1>
   <span class="version" id="version"></span>
@@ -18,7 +18,7 @@
 <div id="app">
   <main id="list"></main>
 </div>
- 
+
 <!-- CLI -->
 <div class="cli-container">
   <button id="addGroup">＋</button>
@@ -28,25 +28,25 @@
 
   <div class="cli-row">
     <input id="cmd" placeholder="15g 1ct" autocomplete="off" />
-    <button id="send">➤</button>
+    <button id="send" aria-label="Send">➤</button>
   </div>
+
+  <div id="feedback"></div>
 </div>
 
-<div id="feedback"></div>
-
+<!-- Modal -->
 <div id="modalBackdrop" class="modal-backdrop hidden">
   <div class="modal">
     <h3>New item</h3>
     <input id="newGroupName" placeholder="Item name" />
     <div class="modal-actions">
-      <button id="cancelModal">Cancel</button>
-      <button id="confirmModal">Create</button>
+      <button id="cancelModal" type="button">Cancel</button>
+      <button id="confirmModal" type="button">Create</button>
     </div>
   </div>
 </div>
- 
-<script type="module" src="app.js"></script>
 
+<script type="module" src="app.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');

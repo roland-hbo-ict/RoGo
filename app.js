@@ -5,17 +5,21 @@ const list = document.getElementById('list');
 const cmd = document.getElementById('cmd');
 const preview = document.getElementById('preview');
 const feedback = document.getElementById('feedback');
-let selectedGroup = null;
-let selectedMode = null;
 
 const chipsEl = document.getElementById('chips');
+
+let selectedGroup = null;
+let selectedMode = null;
 
 async function loadVersion() {
   try {
     const res = await fetch('manifest.json');
     const manifest = await res.json();
-    document.getElementById('version').textContent = 'v' + manifest.version;
-  } catch {}
+    const el = document.getElementById('version');
+    if (el && manifest.version) el.textContent = 'v' + manifest.version;
+  } catch {
+    /* ignore */
+  }
 }
 
 function hapticSuccess() {
@@ -32,11 +36,12 @@ function sumInputTotals(input) {
 
   for (const p of parts) {
     const m = p.match(/^(\d+)(g|ct|r|b)$/i);
-    if (!m) continue; // keep chips showing bad tokens, but preview totals ignore them
+    if (!m) continue; // chips still show invalid tokens; totals ignore them
     const val = Number(m[1]);
     const key = m[2].toLowerCase();
     totals[key] += val;
   }
+
   return totals;
 }
 
@@ -73,37 +78,32 @@ function renderComputedRows(current, delta) {
 
 function renderPlainRows(current) {
   const order = ['g', 'ct', 'r', 'b'];
-  return order
-    .filter(k => (current[k] || 0) > 0)
-    .map(k => `<div class="row plain"><span class="k">${k}</span><span class="res">${current[k]}</span></div>`)
-    .join('') || `<div class="row plain muted">—</div>`;
-}
-
-function renderStats(stats) {
-  return Object.entries(stats)
-    .filter(([, v]) => v > 0)
-    .map(([k, v]) => `<div>${k} ${v}</div>`)
-    .join('');
+  return (
+    order
+      .filter(k => (current[k] || 0) > 0)
+      .map(k => `<div class="row plain"><span class="k">${k}</span><span class="res">${current[k]}</span></div>`)
+      .join('') || `<div class="row plain muted">—</div>`
+  );
 }
 
 async function load() {
   const groups = await getGroupsWithTotals();
   list.innerHTML = '';
 
-  const deltaTotals = (selectedGroup && selectedMode) ? sumInputTotals(cmd.value) : { g:0, ct:0, r:0, b:0 };
+  const deltaTotals =
+    selectedGroup && selectedMode ? sumInputTotals(cmd.value) : { g: 0, ct: 0, r: 0, b: 0 };
 
-  groups.forEach(g => {
+  for (const g of groups) {
     const isSelected = g.name === selectedGroup;
-
     const showButtons = isSelected;
 
     const geleverdBlock =
-      (isSelected && selectedMode === 'geleverd')
+      isSelected && selectedMode === 'geleverd'
         ? renderComputedRows(g.geleverd, deltaTotals)
         : renderPlainRows(g.geleverd);
 
     const retourBlock =
-      (isSelected && selectedMode === 'retour')
+      isSelected && selectedMode === 'retour'
         ? renderComputedRows(g.retour, deltaTotals)
         : renderPlainRows(g.retour);
 
@@ -120,7 +120,7 @@ async function load() {
           </div>
         ` : ''}
 
-        <div class="totals ${showButtons ? 'buttons-visible' : ''}">
+        <div class="totals">
           <div class="section geleverd">
             <div class="bar"></div>
             <div class="stats">
@@ -139,7 +139,7 @@ async function load() {
         </div>
       </div>
     `;
-  });
+  }
 
   cmd.disabled = !(selectedGroup && selectedMode);
   cmd.placeholder = selectedGroup
@@ -152,8 +152,10 @@ async function load() {
 list.addEventListener('click', e => {
   const modeBtn = e.target.closest('.mode');
   const card = e.target.closest('.group');
+  if (!card) return;
 
-  if (modeBtn && card) {
+  // Clicked a mode button (inside selected card)
+  if (modeBtn) {
     selectedGroup = card.dataset.name;
     selectedMode = modeBtn.dataset.mode;
     load();
@@ -161,14 +163,21 @@ list.addEventListener('click', e => {
     return;
   }
 
-  if (card) {
-    selectedGroup = card.dataset.name;
-    load();
-  }
+  // Clicked the card itself (switch selection)
+  selectedGroup = card.dataset.name;
+
+  // 5.A reset: when switching cards, clear mode + input + preview + chips
+  selectedMode = null;
+  cmd.value = '';
+  chipsEl.innerHTML = '';
+  preview.textContent = '';
+  feedback.textContent = '';
+
+  load();
 });
 
 cmd.addEventListener('input', () => {
-  // chips stay per-token (exactly what you already like)
+  // chips stay per-token
   const parts = cmd.value.trim().split(/\s+/);
   chipsEl.innerHTML = '';
 
@@ -181,7 +190,7 @@ cmd.addEventListener('input', () => {
     chipsEl.appendChild(chip);
   }
 
-  // preview becomes total of what user typed
+  // preview shows total of what user typed
   if (selectedGroup && selectedMode) {
     const totals = sumInputTotals(cmd.value);
     preview.textContent = `${selectedGroup} · ${selectedMode} → ${formatTotals(totals)}`;
@@ -189,11 +198,9 @@ cmd.addEventListener('input', () => {
     preview.textContent = '';
   }
 
-  // optional: live update card delta display (simple: reload)
-  // If you later want to avoid re-rendering everything, we can optimize.
+  // simple: re-render for computed delta rows
   load();
 });
-
 
 async function send() {
   try {
@@ -205,11 +212,14 @@ async function send() {
     preview.classList.add('pulse');
 
     hapticSuccess();
+
     cmd.value = '';
+    chipsEl.innerHTML = '';
     preview.textContent = '';
+
     await load();
   } catch (e) {
-    feedback.textContent = '⚠ ' + e.message;
+    feedback.textContent = '⚠ ' + (e?.message || 'Error');
     preview.classList.remove('pulse');
     void preview.offsetWidth;
     preview.classList.add('pulse');
@@ -226,35 +236,28 @@ window.addEventListener('load', () => {
   load();
 });
 
+/* Keep CLI above Android keyboard (visualViewport) */
 const cli = document.querySelector('.cli-container');
-
 if (window.visualViewport && cli) {
   const reposition = () => {
     const vv = window.visualViewport;
-    const offset =
-      window.innerHeight - vv.height - vv.offsetTop;
-
-    cli.style.transform =
-      offset > 0 ? `translateY(-${offset}px)` : 'translateY(0)';
+    const offset = window.innerHeight - vv.height - vv.offsetTop;
+    cli.style.transform = offset > 0 ? `translateY(-${offset}px)` : 'translateY(0)';
   };
-
-  visualViewport.addEventListener('resize', reposition);
-  visualViewport.addEventListener('scroll', reposition);
+  window.visualViewport.addEventListener('resize', reposition);
+  window.visualViewport.addEventListener('scroll', reposition);
+  reposition();
 }
 
+/* Modal */
 const modal = document.getElementById('modalBackdrop');
 const newGroupInput = document.getElementById('newGroupName');
 
 document.addEventListener('keydown', e => {
   if (modal.classList.contains('hidden')) return;
 
-  if (e.key === 'Escape') {
-    modal.classList.add('hidden');
-  }
-
-  if (e.key === 'Enter') {
-    document.getElementById('confirmModal').click();
-  }
+  if (e.key === 'Escape') modal.classList.add('hidden');
+  if (e.key === 'Enter') document.getElementById('confirmModal').click();
 });
 
 document.getElementById('addGroup').onclick = () => {
@@ -276,7 +279,11 @@ document.getElementById('confirmModal').onclick = async () => {
   if (!name) return;
 
   await ensureGroup(name);
+
+  // Select the new group, but force user to pick mode (safer UX)
   selectedGroup = name;
+  selectedMode = null;
+
   modal.classList.add('hidden');
   load();
 };
