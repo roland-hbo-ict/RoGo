@@ -15,7 +15,7 @@
   box-sizing: border-box;
 }
 
-html {
+html, button {
   font-size: 65%;
 }
 
@@ -43,7 +43,7 @@ html, body {
   position: absolute;
   top: 6px;
   right: 10px;
-  font-size: 50%;
+  font-size: 75%;
   opacity: 0.5;
 }
 
@@ -295,7 +295,6 @@ html, body {
 .section.retour   .bar { background: var(--retour); }
 
 .stats {
-  font-size: 14px;
   color: var(--muted);
   line-height: 1.4;
 }
@@ -312,31 +311,52 @@ html, body {
   color: var(--text);
 }
 
-.row {
-  display: grid;
-  grid-template-columns: 18px auto 12px auto 12px auto;
-  gap: 6px;
-  align-items: baseline;
-  margin: 2px 0;
-}
-
-.row .k { color: var(--muted); }
-.row .cur { color: var(--muted); }
-.row .arrow { opacity: 0.35; }
-.row .delta { color: var(--accent); font-weight: 700; }
-.section.retour .row .delta { color: var(--retour); }
-.row .res { color: var(--text); font-weight: 700; }
-
 .row.plain {
   grid-template-columns: 18px auto;
 }
+
 .row.plain .res {
   color: var(--text);
   font-weight: 600;
 }
+
 .row.plain.muted {
   opacity: 0.35;
 }
+
+
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.row .k {
+  width: 20px;
+  color: var(--muted);
+}
+
+.row .cur,
+.row .delta,
+.row .res {
+  min-width: 44px;
+  text-align: right;
+}
+
+.row .arrow {
+  width: 16px;
+  text-align: center;
+  opacity: 0.35;
+}
+
+.row .delta { color: var(--accent); font-weight: 700; }
+.section.retour .row .delta { color: var(--retour); }
+
+.row .res { color: var(--text); font-weight: 700; }
+.row:not(:has(.delta)) .res { font-weight: 600; color: var(--muted); }
+
 
 .mode.retour.active {
   background: var(--retour);
