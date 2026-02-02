@@ -1,4 +1,7 @@
-const CACHE_NAME = `rogo-pwa-v${1}`;
+const params = new URL(self.location).searchParams;
+const VERSION = params.get('v') || 'dev';
+
+const CACHE_NAME = `rogo-pwa-v${VERSION}`;
 
 const ASSETS = [
   './',
@@ -28,10 +31,15 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter(k => k.startsWith('rogo-pwa-') && k !== CACHE_NAME)
+          .map(k => caches.delete(k))
+      )
     )
   );
 });
+
 
 self.addEventListener('fetch', event => {
   event.respondWith(

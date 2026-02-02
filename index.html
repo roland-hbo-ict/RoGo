@@ -100,9 +100,13 @@
 <script type="module" src="app.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
+    navigator.serviceWorker.register(`./sw.js?v=${window.__ROGO_VERSION__}`);
   }
 </script>
+<script>
+  window.__ROGO_VERSION__ = "0.1 alpha";
+</script>
+
 
 </body>
 </html>
