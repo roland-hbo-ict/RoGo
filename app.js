@@ -19,6 +19,7 @@ let selectedGroup = null;
 let selectedMode = null;
 
 let modeHintTimer = null;
+let scrollSelectedToTop = false;
 
 const I18N = {
   nl: {
@@ -288,6 +289,12 @@ async function load() {
       ? t('placeholderExample', selectedGroup, selectedMode)
       : t('selectMode')
     : t('selectItemFirst');
+
+  if (scrollSelectedToTop) {
+    scrollSelectedToTop = false;
+    const el = document.querySelector('.group.selected');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 list.addEventListener('click', e => {
@@ -299,6 +306,7 @@ list.addEventListener('click', e => {
   if (modeBtn) {
     selectedGroup = card.dataset.name;
     selectedMode = modeBtn.dataset.mode;
+    scrollSelectedToTop = true;
     stopModeHintPulse();
     load();
     cmd.focus();
@@ -307,6 +315,7 @@ list.addEventListener('click', e => {
 
   selectedGroup = card.dataset.name;
   selectedMode = null;
+  scrollSelectedToTop = true;
   cmd.value = '';
   chipsEl.innerHTML = '';
   preview.textContent = '';

@@ -29,9 +29,15 @@ html, body {
 }
 
 .topbar {
-  position: relative;
+  position: fixed;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
   text-align: center;
   padding: 12px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  z-index: 40;
 }
 
 .topbar h1 {
@@ -61,6 +67,7 @@ body.hand-left .version{
 /* App wrapper */
 #app {
   min-height: 100svh;
+  padding-top: 56px; /* space for fixed topbar */
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
@@ -69,6 +76,7 @@ body.hand-left .version{
   background: var(--card);
   padding: 10px;
   margin: 8px;
+  scroll-margin-top: 64px;
   border-radius: 12px;
   border: 1px solid var(--border);
   cursor: pointer;
@@ -154,7 +162,7 @@ body.hand-left .version{
   margin: 8px 12px;
 }
 
-.mode {
+.modes .mode {
   flex: 1;
   padding: 6px 0;
   border-radius: 10px;
@@ -464,6 +472,8 @@ body.hand-left .version{
   font-weight: 800;
   margin-bottom: 10px;
   cursor:pointer;
+  width: 100%;
+  flex: 0 0 auto;
 }
 
 .stats .title.mode.active {
