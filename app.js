@@ -11,6 +11,33 @@ const chipsEl = document.getElementById('chips');
 let selectedGroup = null;
 let selectedMode = null;
 
+let modeHintTimer = null;
+
+function startModeHintPulse() {
+  stopModeHintPulse();
+
+  // pulse now + every minute, until a mode is chosen
+  const pulse = () => {
+    const card = document.querySelector(`.group.selected`);
+    if (!card) return;
+
+    const buttons = card.querySelectorAll('.stats .title.mode');
+    buttons.forEach(b => {
+      b.classList.remove('hint');
+      void b.offsetWidth;
+      b.classList.add('hint');
+    });
+  };
+
+  pulse();
+  modeHintTimer = setInterval(pulse, 10000);
+}
+
+function stopModeHintPulse() {
+  if (modeHintTimer) clearInterval(modeHintTimer);
+  modeHintTimer = null;
+}
+
 async function loadVersion() {
   try {
     const res = await fetch('manifest.json');
@@ -54,26 +81,42 @@ function formatTotals(totals) {
   return out.join(' ') || '…';
 }
 
-function renderComputedRows(current, delta) {
+function renderMixedRows(current, delta, showDelta) {
   const order = ['g', 'ct', 'r', 'b'];
-  return order
-    .filter(k => (current[k] || 0) > 0 || (delta[k] || 0) > 0)
-    .map(k => {
-      const cur = current[k] || 0;
-      const d = delta[k] || 0;
-      const res = cur + d;
-      return `
+
+  // If user isn't typing anything valid, just show plain rows
+  if (!showDelta) return renderPlainRows(current);
+
+  // When typing: only show computed rows for keys where delta > 0,
+  // but keep other existing (cur>0) rows plain (no +0).
+  const lines = [];
+
+  for (const k of order) {
+    const cur = current[k] || 0;
+    const d = delta[k] || 0;
+
+    if (d > 0) {
+      lines.push(`
         <div class="row">
           <span class="k">${k}</span>
           <span class="cur">${cur}</span>
           <span class="arrow">→</span>
           <span class="delta">+${d}</span>
           <span class="arrow">→</span>
-          <span class="res">${res}</span>
+          <span class="res">${cur + d}</span>
         </div>
-      `;
-    })
-    .join('');
+      `);
+    } else if (cur > 0) {
+      lines.push(`
+        <div class="row plain">
+          <span class="k">${k}</span>
+          <span class="res">${cur}</span>
+        </div>
+      `);
+    }
+  }
+
+  return lines.join('') || `<div class="row muted">—</div>`;
 }
 
 function renderPlainRows(current) {
@@ -136,37 +179,37 @@ async function load() {
 
   for (const g of groups) {
     const isSelected = g.name === selectedGroup;
-    const showButtons = isSelected;
+
+    const deltaTotals = selectedGroup && selectedMode ? sumInputTotals(cmd.value) : { g:0, ct:0, r:0, b:0 };
+    const showDelta = isSelected && !!selectedMode && hasAnyDelta(deltaTotals);
+
+    const geleverdTitle = isSelected
+      ? `<div class="title mode ${selectedMode === 'geleverd' ? 'active' : ''}" data-mode="geleverd">Geleverd</div>`
+      : `<div class="title">Geleverd</div>`;
+
+    const retourTitle = isSelected
+      ? `<div class="title mode ${selectedMode === 'retour' ? 'active' : ''}" data-mode="retour">Retour</div>`
+      : `<div class="title">Retour</div>`;
 
     const geleverdBlock =
-      isSelected && selectedMode === 'geleverd'
-        ? (showDelta ? renderMixedRows(g.geleverd, deltaTotals) : renderPlainRows(g.geleverd))
+      (isSelected && selectedMode === 'geleverd')
+        ? renderMixedRows(g.geleverd, deltaTotals, showDelta)
         : renderPlainRows(g.geleverd);
 
     const retourBlock =
-      isSelected && selectedMode === 'retour'
-        ? (showDelta ? renderMixedRows(g.retour, deltaTotals) : renderPlainRows(g.retour))
+      (isSelected && selectedMode === 'retour')
+        ? renderMixedRows(g.retour, deltaTotals, showDelta)
         : renderPlainRows(g.retour);
-
 
     list.innerHTML += `
       <div class="group ${isSelected ? 'selected' : ''}" data-name="${g.name}">
         <strong>${g.name}</strong>
 
-        ${showButtons ? `
-          <div class="modes">
-            <button class="mode ${selectedMode === 'geleverd' ? 'active' : ''}"
-                    data-mode="geleverd">Geleverd</button>
-            <button class="mode retour ${selectedMode === 'retour' ? 'active' : ''}"
-                    data-mode="retour">Retour</button>
-          </div>
-        ` : ''}
-
         <div class="totals">
           <div class="section geleverd">
             <div class="bar"></div>
             <div class="stats">
-              ${showButtons ? '' : '<div class="title">Geleverd</div>'}
+              ${geleverdTitle}
               ${geleverdBlock}
             </div>
           </div>
@@ -174,7 +217,7 @@ async function load() {
           <div class="section retour">
             <div class="bar"></div>
             <div class="stats">
-              ${showButtons ? '' : '<div class="title">Retour</div>'}
+              ${retourTitle}
               ${retourBlock}
             </div>
           </div>
@@ -200,22 +243,20 @@ list.addEventListener('click', e => {
   if (modeBtn) {
     selectedGroup = card.dataset.name;
     selectedMode = modeBtn.dataset.mode;
+    stopModeHintPulse();
     load();
     cmd.focus();
     return;
   }
 
-  // Clicked the card itself (switch selection)
   selectedGroup = card.dataset.name;
-
-  // 5.A reset: when switching cards, clear mode + input + preview + chips
   selectedMode = null;
   cmd.value = '';
   chipsEl.innerHTML = '';
   preview.textContent = '';
   feedback.textContent = '';
-
   load();
+  startModeHintPulse();
 });
 
 cmd.addEventListener('input', () => {
@@ -276,7 +317,9 @@ window.addEventListener('load', () => {
   loadVersion();
   cmd.focus();
   load();
+  startModeHintPulse();
 });
+
 
 /* Keep CLI above Android keyboard (visualViewport) */
 const cli = document.querySelector('.cli-container');
@@ -329,3 +372,56 @@ document.getElementById('confirmModal').onclick = async () => {
   modal.classList.add('hidden');
   load();
 };
+
+/* Settings Modal */
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsBackdrop = document.getElementById('settingsBackdrop');
+const closeSettings = document.getElementById('closeSettings');
+const themeToggle = document.getElementById('themeToggle');
+const handToggle = document.getElementById('handToggle');
+
+function applySettingsFromStorage() {
+  const theme = localStorage.getItem('rogo_theme') || 'dark';
+  const hand = localStorage.getItem('rogo_hand') || 'right';
+
+  document.body.classList.toggle('theme-light', theme === 'light');
+  document.body.classList.toggle('hand-left', hand === 'left');
+
+  if (themeToggle) themeToggle.checked = theme === 'light';
+  if (handToggle) handToggle.checked = hand === 'left';
+}
+
+function openSettings() {
+  settingsBackdrop.classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+  settingsBackdrop.classList.add('hidden');
+}
+
+settingsBtn?.addEventListener('click', openSettings);
+closeSettings?.addEventListener('click', closeSettingsModal);
+
+settingsBackdrop?.addEventListener('click', (e) => {
+  if (e.target === settingsBackdrop) closeSettingsModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!settingsBackdrop || settingsBackdrop.classList.contains('hidden')) return;
+  if (e.key === 'Escape') closeSettingsModal();
+});
+
+themeToggle?.addEventListener('change', () => {
+  const val = themeToggle.checked ? 'light' : 'dark';
+  localStorage.setItem('rogo_theme', val);
+  applySettingsFromStorage();
+});
+
+handToggle?.addEventListener('change', () => {
+  const val = handToggle.checked ? 'left' : 'right';
+  localStorage.setItem('rogo_hand', val);
+  applySettingsFromStorage();
+});
+
+// call once on boot
+applySettingsFromStorage();

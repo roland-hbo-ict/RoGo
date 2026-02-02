@@ -12,6 +12,11 @@
 
 <header class="topbar">
   <h1>RoGo</h1>
+
+  <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
+    ⚙
+  </button>
+
   <span class="version" id="version"></span>
 </header>
 
@@ -42,6 +47,39 @@
     <div class="modal-actions">
       <button id="cancelModal" type="button">Cancel</button>
       <button id="confirmModal" type="button">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsBackdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h3>Settings</h3>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Theme</div>
+        <div class="setting-sub">Dark / Light</div>
+      </div>
+      <label class="switch">
+        <input id="themeToggle" type="checkbox" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Handedness</div>
+        <div class="setting-sub">Buttons on left</div>
+      </div>
+      <label class="switch">
+        <input id="handToggle" type="checkbox" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button id="closeSettings" type="button">Close</button>
     </div>
   </div>
 </div>

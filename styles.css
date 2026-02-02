@@ -43,7 +43,7 @@ html, body {
   position: absolute;
   top: 6px;
   right: 10px;
-  font-size: 50%;
+  /* font-size: 65%; */
   opacity: 0.5;
 }
 
@@ -141,7 +141,7 @@ html, body {
 
 .mode {
   flex: 1;
-  padding: 8px 0;
+  padding: 6px 0;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: transparent;
@@ -282,7 +282,7 @@ html, body {
   display: flex;
   gap: 10px;
   align-items: stretch; /* makes bar stretch properly */
-  min-height: 90px;     /* ensures bar has visible height even with few rows */
+  min-height: 40px;     /* ensures bar has visible height even with few rows */
 }
 
 .section .bar {
@@ -295,7 +295,6 @@ html, body {
 .section.retour   .bar { background: var(--retour); }
 
 .stats {
-  font-size: 14px;
   color: var(--muted);
   line-height: 1.4;
 }
@@ -364,4 +363,175 @@ html, body {
   background: var(--retour);
   border-color: var(--retour);
   color: #000;
+}
+
+
+
+/* --- Keep retour from being pushed: sections are equal-width columns --- */
+.totals{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  gap: 14px;
+  align-items: start;
+}
+.section{ min-width:0; } /* important for grid shrink */
+
+/* --- Mode-as-title button inside stats --- */
+.stats .title {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 10px;
+  user-select:none;
+}
+
+.stats .title.mode {
+  cursor:pointer;
+  background: transparent;
+}
+
+.stats .title.mode.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #000;
+}
+
+.section.retour .stats .title.mode.active{
+  border-color: var(--retour);
+  background: var(--retour);
+  color:#000;
+}
+
+/* --- Vertical bars always visible and stable --- */
+.section { display:flex; gap:10px; }
+.section .bar{
+  width: 3px;
+  border-radius: 3px;
+  flex: 0 0 3px;
+}
+.section.geleverd .bar{ background: var(--accent); }
+.section.retour .bar{ background: var(--retour); }
+
+/* --- Row layout: arrows + numbers always one horizontal line --- */
+.row{
+  display:grid;
+  grid-template-columns: 18px 1fr 18px 1fr 18px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+.row .k{ color: var(--muted); }
+.row .cur,
+.row .delta,
+.row .res{ text-align:right; min-width:0; }
+.row .arrow{ opacity:0.35; text-align:center; }
+.row .delta{ color: var(--accent); font-weight: 700; }
+.section.retour .row .delta{ color: var(--retour); }
+.row .res{ color: var(--text); font-weight: 800; }
+
+.row.plain{
+  grid-template-columns: 18px 1fr;
+}
+.row.plain .res{ text-align:right; }
+
+.row.muted{ opacity: 0.5; }
+
+/* --- Hint pulse when user still needs to pick mode --- */
+@keyframes hintPulse {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+.stats .title.mode.hint{
+  animation: hintPulse 0.5s ease-in-out 0s 3;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+/* --- Settings button in topbar --- */
+.icon-btn{
+  position:absolute;
+  left: 10px;
+  top: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* --- Switch UI --- */
+.setting-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.setting-title{ font-weight: 700; }
+.setting-sub{ opacity: 0.6; font-size: 90%; }
+
+.switch{
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 26px;
+}
+.switch input{ display:none; }
+.slider{
+  position:absolute;
+  cursor:pointer;
+  inset:0;
+  background:#2b2b33;
+  border-radius: 999px;
+  transition: 0.2s;
+}
+.slider:before{
+  content:"";
+  position:absolute;
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  top: 3px;
+  background:#fff;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.switch input:checked + .slider{
+  background: var(--accent);
+}
+.switch input:checked + .slider:before{
+  transform: translateX(20px);
+}
+
+/* --- Left-handed layout: swap CLI row order --- */
+body.hand-left .cli-row{
+  flex-direction: row-reverse;
+}
+body.hand-left #addGroup{
+  right: auto;
+  left: 16px;
+}
+
+/* --- Light theme (simple) --- */
+body.theme-light{
+  --bg: #f6f7fb;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --border: #d7dbe6;
+  --text: #0f172a;
+  --muted: #475569;
+  --surface: #f1f5f9;
+}
+body.theme-light .group.selected{
+  box-shadow: 0 0 0 1px var(--accent);
 }
