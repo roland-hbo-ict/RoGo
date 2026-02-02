@@ -1,53 +1,45 @@
-import { addEvent, ensureGroup, getAliases, openDB } from './db.js';
-
-const COMMANDS = [
-  { trigger: '-', target: 'geleverd', mode: 'remove', label: 'Remove' },
-  { trigger: '<', target: 'retour', mode: 'add', label: 'Add retour' },
-  { trigger: '', target: 'geleverd', mode: 'add', label: 'Add geleverd' }
-];
+import { addEvent, ensureGroup } from './db.js';
 
 export async function parseAndExecute(input, groupName, mode) {
   input = input.trim();
-  if (!input) throw new Error('Empty command');
-  if (!groupName || !mode) throw new Error('Select item and mode');
 
-  const cmd = COMMANDS
-    .sort((a, b) => b.trigger.length - a.trigger.length)
-    .find(c => input.startsWith(c.trigger));
-
-  const rest = input.slice(cmd.trigger.length).trim();
-  const parts = rest.split(/\s+/);
-
-  let groupName = selectedGroup;
-
-  if (!groupName) {
-    const aliases = await getAliases();
-    const alias = parts.shift()?.toLowerCase();
-    groupName = aliases[alias];
+  if (!input) {
+    throw new Error('Empty input');
   }
 
-  if (!groupName) {
-    throw new Error('Select an item or use alias');
+  if (!groupName || !mode) {
+    throw new Error('Select item and mode');
   }
 
+  // Parse amounts
+  const parts = input.split(/\s+/);
   const amounts = { g: 0, ct: 0, r: 0, b: 0 };
 
   for (const p of parts) {
-    const m = p.match(/^(\d+)(g|ct|r|b)$/i);
-    if (!m) throw new Error('Invalid amount: ' + p);
+    const match = p.match(/^(\d+)(g|ct|r|b)$/i);
+    if (!match) {
+      throw new Error(`Invalid amount: ${p}`);
+    }
 
-    const val = parseInt(m[1], 10);
-    const key = m[2].toLowerCase();
-    amounts[key] += cmd.mode === 'remove' ? -val : val;
+    const value = Number(match[1]);
+    const key = match[2].toLowerCase();
+
+    amounts[key] += value;
   }
 
+  // Ensure group exists
   const groupId = await ensureGroup(groupName);
 
+  // Store event
   await addEvent({
     groupId,
-    target: mode,
+    target: mode, // 'geleverd' | 'retour'
     ...amounts
   });
 
-  return { label: cmd.label, groupName, target: mode, amounts };
+  return {
+    groupName,
+    target: mode,
+    amounts
+  };
 }
