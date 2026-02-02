@@ -43,7 +43,7 @@ html, body {
   position: absolute;
   top: 6px;
   right: 10px;
-  /* font-size: 65%; */
+  font-size: 65%;
   opacity: 0.5;
 }
 
@@ -376,23 +376,32 @@ html, body {
 }
 .section{ min-width:0; } /* important for grid shrink */
 
-/* --- Mode-as-title button inside stats --- */
-.stats .title {
+/* --- Titles: plain text by default --- */
+.stats .title{
+  display:block;
+  height:auto;
+  border:none;
+  border-radius:0;
+  padding:0;
+  margin-bottom: 6px;
+  color: var(--text);
+  font-weight: 800;
+  user-select:none;
+}
+
+/* --- Only clickable mode titles look like buttons --- */
+.stats .title.mode{
   display:flex;
   align-items:center;
   justify-content:center;
   height: 36px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  color: var(--muted);
-  font-weight: 700;
-  margin-bottom: 10px;
-  user-select:none;
-}
-
-.stats .title.mode {
-  cursor:pointer;
   background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+  margin-bottom: 10px;
+  cursor:pointer;
 }
 
 .stats .title.mode.active {
@@ -534,4 +543,22 @@ body.theme-light{
 }
 body.theme-light .group.selected{
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+.select{
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+/* persistent nudge when mode not selected */
+@keyframes needsGlow {
+  0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 1px rgba(74,222,128,0.25); }
+}
+
+.group.selected .stats .title.mode.needs{
+  animation: needsGlow 1.2s ease-in-out infinite;
 }

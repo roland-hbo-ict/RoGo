@@ -1,5 +1,6 @@
 import { parseAndExecute } from './parser.js';
 import { getGroupsWithTotals, ensureGroup } from './db.js';
+import { TOKEN_ORDER, getTokenDefs, buildAliasMap, displayKey } from './tokens.js';
 
 const list = document.getElementById('list');
 const cmd = document.getElementById('cmd');
@@ -12,6 +13,52 @@ let selectedGroup = null;
 let selectedMode = null;
 
 let modeHintTimer = null;
+
+const I18N = {
+  nl: {
+    delivered: 'Geleverd',
+    returned: 'Retour',
+    newItem: 'Nieuw item',
+    itemName: 'Item naam',
+    cancel: 'Annuleren',
+    create: 'Aanmaken',
+    settings: 'Instellingen',
+    theme: 'Thema',
+    themeSub: 'Donker / Licht',
+    handed: 'Handigheid',
+    handedSub: 'Knoppen links',
+    close: 'Sluiten',
+    selectMode: 'Selecteer geleverd of retour',
+    selectItemFirst: 'Selecteer eerst een item',
+    placeholderExample: (group, mode) => `${group} · ${mode} → 15k 1c`,
+  },
+  en: {
+    delivered: 'Delivered',
+    returned: 'Return',
+    newItem: 'New item',
+    itemName: 'Item name',
+    cancel: 'Cancel',
+    create: 'Create',
+    settings: 'Settings',
+    theme: 'Theme',
+    themeSub: 'Dark / Light',
+    handed: 'Handedness',
+    handedSub: 'Buttons on left',
+    close: 'Close',
+    selectMode: 'Select delivered or return',
+    selectItemFirst: 'Select an item first',
+    placeholderExample: (group, mode) => `${group} · ${mode} → 15k 1c`,
+  }
+};
+
+function getLang() {
+  return localStorage.getItem('rogo_lang') || 'nl';
+}
+function t(key, ...args) {
+  const lang = getLang();
+  const v = I18N[lang]?.[key] ?? I18N.nl[key] ?? key;
+  return typeof v === 'function' ? v(...args) : v;
+}
 
 function startModeHintPulse() {
   stopModeHintPulse();
@@ -58,14 +105,21 @@ function hapticError() {
 }
 
 function sumInputTotals(input) {
-  const totals = { g: 0, ct: 0, r: 0, b: 0 };
+  const defs = getTokenDefs();
+  const aliasMap = buildAliasMap(defs);
+
+  const totals = Object.fromEntries(TOKEN_ORDER.map(k => [k, 0]));
   const parts = input.trim().split(/\s+/).filter(Boolean);
 
   for (const p of parts) {
-    const m = p.match(/^(\d+)(g|ct|r|b)$/i);
-    if (!m) continue; // chips still show invalid tokens; totals ignore them
+    const m = p.match(/^(\d+)([a-z]{1,2})$/i);
+    if (!m) continue;
+
     const val = Number(m[1]);
-    const key = m[2].toLowerCase();
+    const alias = m[2].toLowerCase();
+    const key = aliasMap[alias];
+    if (!key) continue;
+
     totals[key] += val;
   }
 
@@ -73,16 +127,17 @@ function sumInputTotals(input) {
 }
 
 function formatTotals(totals) {
-  const order = ['g', 'ct', 'r', 'b'];
+  const defs = getTokenDefs();
   const out = [];
-  for (const k of order) {
-    if (totals[k] > 0) out.push(`${totals[k]}${k}`);
+
+  for (const k of TOKEN_ORDER) {
+    if ((totals[k] || 0) > 0) out.push(`${totals[k]}${displayKey(defs, k)}`);
   }
   return out.join(' ') || '…';
 }
 
 function renderMixedRows(current, delta, showDelta) {
-  const order = ['g', 'ct', 'r', 'b'];
+  const order = TOKEN_ORDER;
 
   // If user isn't typing anything valid, just show plain rows
   if (!showDelta) return renderPlainRows(current);
@@ -98,7 +153,7 @@ function renderMixedRows(current, delta, showDelta) {
     if (d > 0) {
       lines.push(`
         <div class="row">
-          <span class="k">${k}</span>
+          <span class="k">${displayKey(getTokenDefs(), k)}</span>
           <span class="cur">${cur}</span>
           <span class="arrow">→</span>
           <span class="delta">+${d}</span>
@@ -109,7 +164,7 @@ function renderMixedRows(current, delta, showDelta) {
     } else if (cur > 0) {
       lines.push(`
         <div class="row plain">
-          <span class="k">${k}</span>
+          <span class="k">${displayKey(getTokenDefs(), k)}</span>
           <span class="res">${cur}</span>
         </div>
       `);
@@ -121,11 +176,11 @@ function renderMixedRows(current, delta, showDelta) {
 
 
 function renderPlainRows(current) {
-  const order = ['g', 'ct', 'r', 'b'];
+  const order = TOKEN_ORDER;
   return (
     order
       .filter(k => (current[k] || 0) > 0)
-      .map(k => `<div class="row plain"><span class="k">${k}</span><span class="res">${current[k]}</span></div>`)
+      .map(k => `<div class="row plain"><span class="k">${displayKey(getTokenDefs(), k)}</span><span class="res">${current[k]}</span></div>`)
       .join('') || `<div class="row plain muted">—</div>`
   );
 }
@@ -148,13 +203,15 @@ async function load() {
     const deltaTotals = selectedGroup && selectedMode ? sumInputTotals(cmd.value) : { g:0, ct:0, r:0, b:0 };
     const showDelta = isSelected && !!selectedMode && hasAnyDelta(deltaTotals);
 
+    const needsMode = isSelected && !selectedMode;
+
     const geleverdTitle = isSelected
-      ? `<div class="title mode ${selectedMode === 'geleverd' ? 'active' : ''}" data-mode="geleverd">Geleverd</div>`
-      : `<div class="title">Geleverd</div>`;
+      ? `<div class="title mode ${selectedMode === 'geleverd' ? 'active' : ''} ${needsMode ? 'needs' : ''}" data-mode="geleverd">${t('delivered')}</div>`
+      : `<div class="title">${t('delivered')}</div>`;
 
     const retourTitle = isSelected
-      ? `<div class="title mode ${selectedMode === 'retour' ? 'active' : ''}" data-mode="retour">Retour</div>`
-      : `<div class="title">Retour</div>`;
+      ? `<div class="title mode ${selectedMode === 'retour' ? 'active' : ''} ${needsMode ? 'needs' : ''}" data-mode="retour">${t('returned')}</div>`
+      : `<div class="title">${t('returned')}</div>`;
 
     const geleverdBlock =
       (isSelected && selectedMode === 'geleverd')
@@ -194,9 +251,9 @@ async function load() {
   cmd.disabled = !(selectedGroup && selectedMode);
   cmd.placeholder = selectedGroup
     ? selectedMode
-      ? `${selectedGroup} · ${selectedMode} → 15g 1ct`
-      : 'Select geleverd or retour'
-    : 'Select an item first';
+      ? t('placeholderExample', selectedGroup, selectedMode)
+      : t('selectMode')
+    : t('selectItemFirst');
 }
 
 list.addEventListener('click', e => {
@@ -231,10 +288,14 @@ cmd.addEventListener('input', () => {
 
   for (const p of parts) {
     if (!p) continue;
-    const m = p.match(/^(\d+)(g|ct|r|b)$/i);
+    const defs = getTokenDefs();
+    const aliasMap = buildAliasMap(defs);
+    const m = p.match(/^(\d+)([a-z]{1,2})$/i);
+    const ok = !!(m && aliasMap[m[2].toLowerCase()]);
+    
     const chip = document.createElement('div');
-    chip.className = 'chip ' + (m ? 'good' : 'bad');
-    chip.textContent = m ? `+${m[1]} ${m[2].toLowerCase()}` : p;
+    chip.className = 'chip ' + (ok ? 'good' : 'bad');
+    chip.textContent = ok ? `+${m[1]} ${m[2].toLowerCase()}` : p;
     chipsEl.appendChild(chip);
   }
 
@@ -344,10 +405,14 @@ const settingsBackdrop = document.getElementById('settingsBackdrop');
 const closeSettings = document.getElementById('closeSettings');
 const themeToggle = document.getElementById('themeToggle');
 const handToggle = document.getElementById('handToggle');
+const langSelect = document.getElementById('langSelect');
 
 function applySettingsFromStorage() {
   const theme = localStorage.getItem('rogo_theme') || 'dark';
   const hand = localStorage.getItem('rogo_hand') || 'right';
+  const lang = localStorage.getItem('rogo_lang') || 'nl';
+  if (langSelect) langSelect.value = lang;
+
 
   document.body.classList.toggle('theme-light', theme === 'light');
   document.body.classList.toggle('hand-left', hand === 'left');
@@ -386,6 +451,11 @@ handToggle?.addEventListener('change', () => {
   const val = handToggle.checked ? 'left' : 'right';
   localStorage.setItem('rogo_hand', val);
   applySettingsFromStorage();
+});
+
+langSelect?.addEventListener('change', () => {
+  localStorage.setItem('rogo_lang', langSelect.value);
+  load();
 });
 
 // call once on boot

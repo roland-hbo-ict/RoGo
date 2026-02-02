@@ -1,4 +1,4 @@
-const CACHE_NAME = 'logistics-pwa-v1.7.2';
+const CACHE_NAME = `rogo-pwa-v${1}`;
 
 const ASSETS = [
   './',
@@ -7,6 +7,7 @@ const ASSETS = [
   './app.js',
   './db.js',
   './parser.js',
+  './tokens.js',
   './manifest.json'
 ];
 
