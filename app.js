@@ -26,6 +26,13 @@ function hapticError() {
   navigator.vibrate?.([30, 20, 30]);
 }
 
+function renderStats(stats) {
+  return Object.entries(stats)
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `<div>${k} ${v}</div>`)
+    .join('');
+}
+
 async function load() {
   const groups = await getGroupsWithTotals();
   list.innerHTML = '';
@@ -49,22 +56,19 @@ async function load() {
         ` : ''}
 
         <div class="totals">
-          <div class="bar"></div>
-          <div class="stats">
-            <div class="section">
+          <div class="section geleverd">
+            <div class="bar"></div>
+            <div class="stats">
               <strong>Geleverd</strong>
-              <div>g ${g.geleverd.g}</div>
-              <div>ct ${g.geleverd.ct}</div>
-              <div>r ${g.geleverd.r}</div>
-              <div>b ${g.geleverd.b}</div>
+              ${renderStats(g.geleverd)}
             </div>
+          </div>
 
-            <div class="section">
+          <div class="section retour">
+            <div class="bar"></div>
+            <div class="stats">
               <strong>Retour</strong>
-              <div>g ${g.retour.g}</div>
-              <div>ct ${g.retour.ct}</div>
-              <div>r ${g.retour.r}</div>
-              <div>b ${g.retour.b}</div>
+              ${renderStats(g.retour)}
             </div>
           </div>
         </div>
@@ -109,6 +113,13 @@ cmd.addEventListener('input', () => {
     chip.textContent = m ? `+${m[1]} ${m[2]}` : p;
     chipsEl.appendChild(chip);
   }
+  
+  if (!selectedGroup || !selectedMode) {
+    preview.textContent = '';
+    return;
+  }
+
+  preview.textContent = `${selectedGroup} · ${selectedMode} → ${cmd.value || '…'}`;
 });
 
 async function send() {
@@ -161,7 +172,13 @@ if (window.visualViewport && cli) {
 const modal = document.getElementById('modalBackdrop');
 const newGroupInput = document.getElementById('newGroupName');
 
-newGroupInput.addEventListener('keydown', e => {
+document.addEventListener('keydown', e => {
+  if (modal.classList.contains('hidden')) return;
+
+  if (e.key === 'Escape') {
+    modal.classList.add('hidden');
+  }
+
   if (e.key === 'Enter') {
     document.getElementById('confirmModal').click();
   }

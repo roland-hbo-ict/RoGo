@@ -10,11 +10,11 @@
 </head>
 <body>
  
-<header>
+<header class="topbar">
   <h1>RoGo</h1>
   <span class="version" id="version"></span>
 </header>
- 
+
 <div id="app">
   <main id="list"></main>
 </div>
@@ -26,8 +26,10 @@
   <div id="preview"></div>
   <div id="chips" class="chips"></div>
 
-  <input id="cmd" placeholder="15g 1ct" autocomplete="off" />
-  <button id="send">➤</button>
+  <div class="cli-row">
+    <input id="cmd" placeholder="15g 1ct" autocomplete="off" />
+    <button id="send">➤</button>
+  </div>
 </div>
 
 <div id="feedback"></div>

@@ -14,6 +14,10 @@
   box-sizing: border-box;
 }
 
+html {
+  font-size: 65%;
+}
+
 html, body {
   margin: 0;
   height: 100%;
@@ -21,6 +25,25 @@ html, body {
   color: var(--text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   overscroll-behavior: none;
+}
+
+.topbar {
+  position: relative;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.version {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 0.75rem;
+  opacity: 0.5;
 }
 
 /* App wrapper */
@@ -32,8 +55,8 @@ html, body {
 /* Group cards */
 .group {
   background: var(--card);
-  margin: 10px;
-  padding: 12px;
+  padding: 10px;
+  margin: 8px;
   border-radius: 12px;
   border: 1px solid var(--border);
   cursor: pointer;
@@ -63,13 +86,15 @@ html, body {
 
 /* Add button */
 #addGroup {
+  width: 42px;
+  height: 42px;
+  font-size: 24px;
+  line-height: 42px;
+  text-align: center;
   position: fixed;
   bottom: calc(96px + env(safe-area-inset-bottom));
   right: 16px;
-  width: 56px;
-  height: 56px;
   border-radius: 50%;
-  font-size: 32px;
   border: none;
   background: var(--accent);
   color: #000;
@@ -171,6 +196,20 @@ html, body {
   opacity: 0.4;
 }
 
+.cli-row {
+  display: flex;
+  gap: 8px;
+}
+
+#send {
+  width: 48px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #000;
+  font-size: 18px;
+}
+
 .chips {
   display: flex;
   gap: 6px;
@@ -206,6 +245,7 @@ html, body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom));
   background: rgba(0,0,0,0.6);
   display: flex;
   align-items: center;
@@ -256,7 +296,14 @@ html, body {
 
 .section {
   display: flex;
+  align-items: flex-start;
   gap: 10px;
+}
+
+.stats strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
 }
 
 .section .bar {
