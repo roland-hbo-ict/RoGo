@@ -6,9 +6,10 @@ const COMMANDS = [
   { trigger: '', target: 'geleverd', mode: 'add', label: 'Add geleverd' }
 ];
 
-export async function parseAndExecute(input, selectedGroup = null) {
+export async function parseAndExecute(input, groupName, mode) {
   input = input.trim();
   if (!input) throw new Error('Empty command');
+  if (!groupName || !mode) throw new Error('Select item and mode');
 
   const cmd = COMMANDS
     .sort((a, b) => b.trigger.length - a.trigger.length)
@@ -44,9 +45,9 @@ export async function parseAndExecute(input, selectedGroup = null) {
 
   await addEvent({
     groupId,
-    target: cmd.target,
+    target: mode,
     ...amounts
   });
 
-  return { label: cmd.label, groupName, target: cmd.target, amounts };
+  return { label: cmd.label, groupName, target: mode, amounts };
 }
