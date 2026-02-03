@@ -152,30 +152,6 @@ body.hand-left .version{
   100% { transform: scale(1); }
 }
 
-/* MODE SELECTION */
-
-.modes {
-  display: flex;
-  gap: 8px;
-  margin: 8px 12px;
-}
-
-.modes .mode {
-  flex: 1;
-  padding: 6px 0;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.mode.active {
-  background: var(--accent);
-  color: #000;
-  border-color: var(--accent);
-}
-
 /* CLI */
 
 .cli-container {
@@ -367,10 +343,6 @@ body.hand-left .version{
 .row:not(:has(.delta)) .res { font-weight: 600; color: var(--muted); }
 
 
-
-.row.plain {
-  grid-template-columns: 18px auto;
-}
 .row.plain .res {
   color: var(--text);
   font-weight: 600;

@@ -124,11 +124,11 @@ function sumInputTotals(input) {
   const parts = input.trim().split(/\s+/).filter(Boolean);
 
   for (const p of parts) {
-    const m = parsePart(p);
-    if (!m) continue;
+    const parsed = parsePart(p);
+    if (!parsed) continue;
 
-    const val = Number(m[1]);
-    const alias = m[2].toLowerCase();
+    const val = parsed.value;
+    const alias = parsed.alias;
     const key = aliasMap[alias];
     if (!key) continue;
 
@@ -150,17 +150,6 @@ function formatTotals(totals) {
 
 function tokenNameNL(defs, id) {
   return defs?.[id]?.name_nl || id;
-}
-
-function tokenCliLabel(defs, id) {
-  // CLI-friendly: prefer full name if short enough, else use token.id, else truncate token.id
-  const full = tokenNameNL(defs, id);
-  if (full.length <= 18) return full;
-
-  const short = String(defs?.[id]?.id || id);
-  if (short.length <= 10) return short;
-
-  return short.slice(0, 6) + '…';
 }
 
 function renderMixedRows(current, delta, showDelta) {
@@ -337,13 +326,17 @@ cmd.addEventListener('input', () => {
   const parts = cmd.value.trim().split(/\s+/);
   chipsEl.innerHTML = '';
 
+  const defs = getTokenDefs();
+  const aliasMap = buildAliasMap(defs);
+
   for (const p of parts) {
     if (!p) continue;
-    const defs = getTokenDefs();
-    const aliasMap = buildAliasMap(defs);
-    const m = parsePart(p);
-    const ok = !!(m && aliasMap[m[2].toLowerCase()]);
-    
+
+    const parsed = parsePart(p);
+    const alias = parsed?.alias;   // string or undefined
+    const value = parsed?.value;   // number or undefined
+    const ok = !!(alias && aliasMap[alias]);
+
     const chip = document.createElement('div');
     chip.className = 'chip ' + (ok ? 'good' : 'bad');
     chip.textContent = ok ? `+${value} ${alias}` : p;
@@ -360,9 +353,6 @@ cmd.addEventListener('input', () => {
 
     // --- suggestions (non-clickable for now) ---
   if (suggestionsEl) suggestionsEl.innerHTML = '';
-
-  const defs = getTokenDefs();
-  const aliasMap = buildAliasMap(defs);
 
   const cleaned = cmd.value.trim();
   const parts2 = cleaned.split(/\s+/).filter(Boolean);
