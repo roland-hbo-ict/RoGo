@@ -500,6 +500,21 @@ function parsePart(p) {
   return null;
 }
 
+
+function syncVisualViewport() {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+
+  // Distance from layout viewport bottom to visual viewport bottom
+  const bottom = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+  document.documentElement.style.setProperty('--vv-bottom', `${bottom}px`);
+}
+
+window.visualViewport?.addEventListener('resize', syncVisualViewport);
+window.visualViewport?.addEventListener('scroll', syncVisualViewport);
+window.addEventListener('resize', syncVisualViewport);
+syncVisualViewport();
+
 /* Settings Modal */
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsBackdrop = document.getElementById('settingsBackdrop');
@@ -510,7 +525,6 @@ const langSelect = document.getElementById('langSelect');
 const suggestionsEl = document.getElementById('suggestions');
 const continuousCreateToggle = document.getElementById('continuousCreateToggle');
 
-
 function applySettingsFromStorage() {
   const theme = localStorage.getItem('rogo_theme') || 'dark';
   const hand = localStorage.getItem('rogo_hand') || 'right';
@@ -519,8 +533,6 @@ function applySettingsFromStorage() {
 
   const contCreate = localStorage.getItem('rogo_cont_create') === '1';
   if (continuousCreateToggle) continuousCreateToggle.checked = contCreate;
-
-
 
   document.body.classList.toggle('theme-light', theme === 'light');
   document.body.classList.toggle('hand-left', hand === 'left');

@@ -26,18 +26,17 @@ html, body {
   color: var(--text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   overscroll-behavior: none;
+  min-height: 100dvh;
 }
 
-.topbar {
-  position: fixed;
-  top: env(safe-area-inset-top);
+.topbar{
+  position: sticky;
+  top: 0;
   left: 0;
   right: 0;
-  text-align: center;
-  padding: 12px 0;
+  z-index: 1000;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  z-index: 40;
 }
 
 .topbar h1 {
@@ -67,7 +66,6 @@ body.hand-left .version{
 /* App wrapper */
 #app {
   min-height: 100svh;
-  padding-top: 56px; /* space for fixed topbar */
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
@@ -359,7 +357,7 @@ body.hand-left .version{
     minmax(0, 1fr)   /* name gets ALL available space */
     auto             /* dots only as wide as needed */
     max-content;     /* value + ref, tight */
-  gap: 8px;
+  gap: 4px;
   align-items: baseline;
   margin: 2px 0;
 }
@@ -370,11 +368,16 @@ body.hand-left .version{
   overflow-wrap: anywhere; /* long Dutch names can wrap nicely */
 }
 
-.statdots {
-  border-bottom: 1px dotted var(--border);
-  opacity: 0.7;
+.statdots{
   align-self: center;
   width: 100%;
+  height: 0;                 /* keeps it from affecting row height */
+  border-bottom: 1px dotted rgba(255,255,255,0.25); /* more visible */
+  opacity: 1;
+  transform: translateY(-1px);
+}
+body.theme-light .statdots{
+  border-bottom-color: rgba(0,0,0,0.25);
 }
 
 .statend{
@@ -682,4 +685,17 @@ body.theme-light .group.selected{
   flex: 0 0 3px;
   border-radius: 3px;
   align-self: stretch;
+}
+
+.cli-container{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--vv-bottom, 0px);
+  z-index: 1000;
+}
+
+.cli-inner {
+  will-change: transform;
+  transform: translateZ(0);
 }
