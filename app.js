@@ -479,7 +479,16 @@ document.getElementById('confirmModal').onclick = async () => {
   selectedGroup = name;
   selectedMode = null;
 
-  modal.classList.add('hidden');
+  const contCreate = localStorage.getItem('rogo_cont_create') === '1';
+
+  if (contCreate) {
+    // keep modal open and allow rapid entry
+    newGroupInput.value = '';
+    newGroupInput.focus();
+  } else {
+    modal.classList.add('hidden');
+  }
+
   load();
 };
 
@@ -491,12 +500,18 @@ const themeToggle = document.getElementById('themeToggle');
 const handToggle = document.getElementById('handToggle');
 const langSelect = document.getElementById('langSelect');
 const suggestionsEl = document.getElementById('suggestions');
+const continuousCreateToggle = document.getElementById('continuousCreateToggle');
+
 
 function applySettingsFromStorage() {
   const theme = localStorage.getItem('rogo_theme') || 'dark';
   const hand = localStorage.getItem('rogo_hand') || 'right';
   const lang = localStorage.getItem('rogo_lang') || 'nl';
   if (langSelect) langSelect.value = lang;
+
+  const contCreate = localStorage.getItem('rogo_cont_create') === '1';
+  if (continuousCreateToggle) continuousCreateToggle.checked = contCreate;
+
 
 
   document.body.classList.toggle('theme-light', theme === 'light');
@@ -541,6 +556,10 @@ handToggle?.addEventListener('change', () => {
 langSelect?.addEventListener('change', () => {
   localStorage.setItem('rogo_lang', langSelect.value);
   load();
+});
+
+continuousCreateToggle?.addEventListener('change', () => {
+  localStorage.setItem('rogo_cont_create', continuousCreateToggle.checked ? '1' : '0');
 });
 
 // call once on boot

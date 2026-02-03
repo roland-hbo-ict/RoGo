@@ -59,6 +59,18 @@
 
     <div class="setting-row">
       <div>
+        <div class="setting-title">Language</div>
+        <div class="setting-sub">Dutch / English</div>
+      </div>
+
+      <select id="langSelect" class="select">
+        <option value="nl">Nederlands</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <div>
         <div class="setting-title">Theme</div>
         <div class="setting-sub">Dark / Light</div>
       </div>
@@ -81,14 +93,13 @@
 
     <div class="setting-row">
       <div>
-        <div class="setting-title">Language</div>
-        <div class="setting-sub">Dutch / English</div>
+        <div class="setting-title">Continuous creation</div>
+        <div class="setting-sub">Keep popup open</div>
       </div>
-
-      <select id="langSelect" class="select">
-        <option value="nl">Nederlands</option>
-        <option value="en">English</option>
-      </select>
+      <label class="switch">
+        <input id="continuousCreateToggle" type="checkbox" />
+        <span class="slider"></span>
+      </label>
     </div>
 
     <div class="modal-actions">
