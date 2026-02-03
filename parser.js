@@ -14,11 +14,10 @@ export async function parseAndExecute(input, groupName, mode) {
   const amounts = Object.fromEntries(TOKEN_ORDER.map(k => [k, 0]));
 
   for (const p of parts) {
-    const match = p.match(/^(\d+)([a-z]{1,12})$/i);
-    if (!match) throw new Error(`Invalid amount: ${p}`);
+    const parsed = parsePart(p);
+    if (!parsed) throw new Error(`Invalid amount: ${p}`);
 
-    const value = Number(match[1]);
-    const alias = match[2].toLowerCase();
+    const { value, alias } = parsed;
     const key = aliasMap[alias];
 
     if (!key) throw new Error(`Invalid amount: ${p}`);
@@ -34,4 +33,15 @@ export async function parseAndExecute(input, groupName, mode) {
   });
 
   return { groupName, target: mode, amounts };
+}
+
+function parsePart(p) {
+  // 12k OR k12
+  let m = p.match(/^(\d+)([a-z]{1,12})$/i);
+  if (m) return { value: Number(m[1]), alias: m[2].toLowerCase() };
+
+  m = p.match(/^([a-z]{1,12})(\d+)$/i);
+  if (m) return { value: Number(m[2]), alias: m[1].toLowerCase() };
+
+  return null;
 }

@@ -58,6 +58,13 @@ const I18N = {
   }
 };
 
+function focusCmdSoon() {
+  // next frame: after DOM + disabled state settles
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => cmd?.focus());
+  });
+}
+
 function getLang() {
   return localStorage.getItem('rogo_lang') || 'nl';
 }
@@ -117,7 +124,7 @@ function sumInputTotals(input) {
   const parts = input.trim().split(/\s+/).filter(Boolean);
 
   for (const p of parts) {
-    const m = p.match(/^(\d+)([a-z]{1,12})$/i);
+    const m = parsePart(p);
     if (!m) continue;
 
     const val = Number(m[1]);
@@ -308,8 +315,7 @@ list.addEventListener('click', e => {
     selectedMode = modeBtn.dataset.mode;
     scrollSelectedToTop = true;
     stopModeHintPulse();
-    load();
-    cmd.focus();
+    load().then(focusCmdSoon);
     return;
   }
 
@@ -320,8 +326,10 @@ list.addEventListener('click', e => {
   chipsEl.innerHTML = '';
   preview.textContent = '';
   feedback.textContent = '';
-  load();
-  startModeHintPulse();
+  load().then(() => {
+    startModeHintPulse();
+    focusCmdSoon();
+  });
 });
 
 cmd.addEventListener('input', () => {
@@ -333,12 +341,12 @@ cmd.addEventListener('input', () => {
     if (!p) continue;
     const defs = getTokenDefs();
     const aliasMap = buildAliasMap(defs);
-    const m = p.match(/^(\d+)([a-z]{1,12})$/i);
+    const m = parsePart(p);
     const ok = !!(m && aliasMap[m[2].toLowerCase()]);
     
     const chip = document.createElement('div');
     chip.className = 'chip ' + (ok ? 'good' : 'bad');
-    chip.textContent = ok ? `+${m[1]} ${m[2].toLowerCase()}` : p;
+    chip.textContent = ok ? `+${value} ${alias}` : p;
     chipsEl.appendChild(chip);
   }
 
@@ -491,6 +499,16 @@ document.getElementById('confirmModal').onclick = async () => {
 
   load();
 };
+
+function parsePart(p) {
+  let m = p.match(/^(\d+)([a-z]{1,12})$/i);
+  if (m) return { value: Number(m[1]), alias: m[2].toLowerCase(), raw: p };
+
+  m = p.match(/^([a-z]{1,12})(\d+)$/i);
+  if (m) return { value: Number(m[2]), alias: m[1].toLowerCase(), raw: p };
+
+  return null;
+}
 
 /* Settings Modal */
 const settingsBtn = document.getElementById('settingsBtn');
