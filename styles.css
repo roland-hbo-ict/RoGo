@@ -353,9 +353,12 @@ body.hand-left .version{
 
 
 
-.statline{
+.statline {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(12px, 1fr) max-content;
+  grid-template-columns:
+    minmax(0, 1fr)   /* name gets ALL available space */
+    auto             /* dots only as wide as needed */
+    max-content;     /* value + ref, tight */
   gap: 8px;
   align-items: baseline;
   margin: 2px 0;
@@ -367,11 +370,11 @@ body.hand-left .version{
   overflow-wrap: anywhere; /* long Dutch names can wrap nicely */
 }
 
-.statdots{
+.statdots {
   border-bottom: 1px dotted var(--border);
   opacity: 0.7;
-  transform: translateY(-2px);
-  min-width: 12px; /* ensures dots still show even when tight */
+  align-self: center;
+  width: 100%;
 }
 
 .statend{
