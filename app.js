@@ -32,12 +32,12 @@ const I18N = {
     settings: 'Instellingen',
     theme: 'Thema',
     themeSub: 'Donker / Licht',
-    handed: 'Handigheid',
+    handed: 'Links-handig',
     handedSub: 'Knoppen links',
     close: 'Sluiten',
     selectMode: 'Selecteer geleverd of retour',
     selectItemFirst: 'Selecteer eerst een item',
-    placeholderExample: (group, mode) => `${group} · ${mode} → 15k 1c`,
+    placeholderExample: `15k 1c`,
   },
   en: {
     delivered: 'Delivered',
@@ -49,12 +49,12 @@ const I18N = {
     settings: 'Settings',
     theme: 'Theme',
     themeSub: 'Dark / Light',
-    handed: 'Handedness',
+    handed: 'Left-handed',
     handedSub: 'Buttons on left',
     close: 'Close',
     selectMode: 'Select delivered or return',
     selectItemFirst: 'Select an item first',
-    placeholderExample: (group, mode) => `${group} · ${mode} → 15k 1c`,
+    placeholderExample: `15k 1c`,
   }
 };
 
@@ -202,14 +202,16 @@ function renderPlainRows(current) {
         const ref = displayKey(defs, k);
 
         return `
+
+
           <div class="statline">
-            <span class="statname">${name}</span>
-            <span class="statdots" aria-hidden="true"></span>
-            <span class="statend">
+            <span class="statname"><span class="statlabel">${name}</span></span>
+            <span class="statend"><span class="statendinner">
               <span class="statqty">${current[k]}</span>
               <span class="statref">${ref}</span>
-            </span>
+            </span></span>
           </div>
+
         `;
       })
       .join('') || `<div class="row plain muted">—</div>`
@@ -256,7 +258,7 @@ async function load() {
 
     list.innerHTML += `
       <div class="group ${isSelected ? 'selected' : ''}" data-name="${g.name}">
-        <strong>${g.name}</strong>
+        <h2>${g.name}</h2>
 
         <div class="totals">
           <div class="section geleverd">
@@ -429,19 +431,6 @@ window.addEventListener('load', () => {
 });
 
 
-/* Keep CLI above Android keyboard (visualViewport) */
-const cli = document.querySelector('.cli-container');
-if (window.visualViewport && cli) {
-  const reposition = () => {
-    const vv = window.visualViewport;
-    const offset = window.innerHeight - vv.height - vv.offsetTop;
-    cli.style.transform = offset > 0 ? `translateY(-${offset}px)` : 'translateY(0)';
-  };
-  window.visualViewport.addEventListener('resize', reposition);
-  window.visualViewport.addEventListener('scroll', reposition);
-  reposition();
-}
-
 /* Modal */
 const modal = document.getElementById('modalBackdrop');
 const newGroupInput = document.getElementById('newGroupName');
@@ -500,20 +489,57 @@ function parsePart(p) {
   return null;
 }
 
-
 function syncVisualViewport() {
   if (!window.visualViewport) return;
   const vv = window.visualViewport;
 
-  // Distance from layout viewport bottom to visual viewport bottom
-  const bottom = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-  document.documentElement.style.setProperty('--vv-bottom', `${bottom}px`);
+  // IMPORTANT:
+  // When zoomed (scale != 1), the visual viewport moves around while you pan.
+  // Using vv offsets then makes fixed bars jitter like crazy.
+  // So: disable the vv-bottom hack while zoomed.
+  if (vv.scale && Math.abs(vv.scale - 1) > 0.01) {
+    document.documentElement.style.setProperty('--vv-bottom', '0px');
+    return;
+  }
+
+  // Only compensate when it looks like a keyboard / UI inset (not normal scroll)
+  const raw = window.innerHeight - (vv.height + vv.offsetTop);
+  const bottom = raw > 0 ? raw : 0;
+
+  // Optional: ignore tiny changes (reduces micro-jitter)
+  const snapped = bottom < 2 ? 0 : Math.round(bottom);
+
+  document.documentElement.style.setProperty('--vv-bottom', `${snapped}px`);
 }
 
 window.visualViewport?.addEventListener('resize', syncVisualViewport);
 window.visualViewport?.addEventListener('scroll', syncVisualViewport);
 window.addEventListener('resize', syncVisualViewport);
 syncVisualViewport();
+
+function syncModalViewportVars() {
+  const vv = window.visualViewport;
+  if (!vv) {
+    document.documentElement.style.setProperty('--vv-top', '0px');
+    document.documentElement.style.setProperty('--vv-h', '100vh');
+    return;
+  }
+
+  // When zoomed, offsets get weird. Keep it simple.
+  if (vv.scale && Math.abs(vv.scale - 1) > 0.01) {
+    document.documentElement.style.setProperty('--vv-top', '0px');
+    document.documentElement.style.setProperty('--vv-h', '100vh');
+    return;
+  }
+
+  document.documentElement.style.setProperty('--vv-top', `${Math.round(vv.offsetTop)}px`);
+  document.documentElement.style.setProperty('--vv-h', `${Math.round(vv.height)}px`);
+}
+
+window.visualViewport?.addEventListener('resize', syncModalViewportVars);
+window.visualViewport?.addEventListener('scroll', syncModalViewportVars);
+window.addEventListener('resize', syncModalViewportVars);
+syncModalViewportVars();
 
 /* Settings Modal */
 const settingsBtn = document.getElementById('settingsBtn');

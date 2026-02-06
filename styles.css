@@ -16,7 +16,7 @@
 }
 
 html {
-  font-size: 65%;
+  font-size: 55%;
 }
 
 html, body {
@@ -32,21 +32,19 @@ html, body {
 .topbar{
   position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+  z-index: 2000;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 
 .topbar h1 {
-  margin: 0;
-  font-size: 150%;
+  font-size: 175%;
+  text-align: center;
 }
 
 .version {
   position: absolute;
-  top: 6px;
+  top: 0;
   right: 10px;
   font-size: 65%;
   opacity: 0.5;
@@ -62,10 +60,9 @@ body.hand-left .version{
   left: 10px;
 }
 
-
 /* App wrapper */
 #app {
-  min-height: 100svh;
+  min-height: 100dvh;
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
@@ -99,9 +96,8 @@ body.hand-left .version{
 /* Add button */
 #addGroup{
   position: absolute;
-  top: 12px;
-  right: 12px;
-
+  top: -55px;
+  right: 0;
   width: 42px;
   height: 42px;
   font-size: 200%;
@@ -113,7 +109,6 @@ body.hand-left .version{
   color: #000;
   box-shadow: 0 4px 10px rgba(0,0,0,0.25);
 }
-
 
 /* Preview + feedback */
 #preview { color: var(--muted); }
@@ -156,15 +151,10 @@ body.hand-left .version{
   display: flex;
   flex-direction: column;
   gap: 6px;
-  position: fixed;
-  bottom: env(safe-area-inset-bottom);
-  left: 0;
-  right: 0;
   padding: 12px;
   padding-top: 64px; /* leaves room for + button */
   background: var(--bg);
   border-top: 1px solid var(--border);
-  z-index: 20;
 }
 
 .cli-container input {
@@ -233,12 +223,22 @@ body.hand-left .version{
   display: none;
 }
 
+:root{
+  --vv-top: 0px;
+  --vv-h: 100vh;
+}
+
+/* Modal panel (the card itself) should fit inside the visual viewport */
 .modal {
-  background: var(--panel);
-  padding: 16px;
-  border-radius: 14px;
-  width: 90%;
-  max-width: 320px;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(var(--vv-top) + 12px);
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(var(--vv-h) - 24px);
+  overflow: auto;               /* IMPORTANT: lets modal scroll when keyboard reduces space */
+  -webkit-overflow-scrolling: touch;
+  padding: 3px;
 }
 
 .modal input {
@@ -299,6 +299,7 @@ body.hand-left .version{
   font-weight: 700;
   color: var(--text);
   margin-bottom: 6px;
+  font-size: 125%;
 }
 
 .stats strong {
@@ -353,44 +354,55 @@ body.hand-left .version{
 
 .statline {
   display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)   /* name gets ALL available space */
-    auto             /* dots only as wide as needed */
-    max-content;     /* value + ref, tight */
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: baseline;
+  column-gap: 0;            /* important: no visible whitespace gap */
+  position: relative;
   margin: 2px 0;
 }
 
-.statname{
-  color: var(--text);
-  font-weight: 600;
-  overflow-wrap: anywhere; /* long Dutch names can wrap nicely */
+.statline::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+
+  /* baseline-ish; tune once and forget */
+  top: 1.05em;
+
+  height: 1px;
+  background-image: radial-gradient(rgba(255,255,255,0.25) 0.7px, transparent 0.7px);
+  background-size: 3px 1px;
+  background-repeat: repeat-x;
+  pointer-events: none;
+}
+body.theme-light .statline::before{
+  background-image: radial-gradient(rgba(0,0,0,0.25) 0.7px, transparent 0.7px);
 }
 
-.statdots{
-  align-self: center;
-  width: 100%;
-  height: 0;                 /* keeps it from affecting row height */
-  border-bottom: 1px dotted rgba(255,255,255,0.25); /* more visible */
-  opacity: 1;
-  transform: translateY(-1px);
-}
-body.theme-light .statdots{
-  border-bottom-color: rgba(0,0,0,0.25);
+.statname,
+.statend {
+  background: var(--card);  /* masks dots behind text */
+  position: relative;
+  z-index: 1;
 }
 
-.statend{
+.statname {
+  word-break: normal;
+  min-width: 0;
+  width: fit-content;
+}
+
+.statend {
   display: inline-flex;
-  gap: 6px;              /* qty and ref close together */
-  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+  padding-left: 6px;
   justify-content: flex-end;
-  text-align: right;
-  white-space: nowrap;   /* keeps "115 g" on one line */
+  font-variant-numeric: tabular-nums;
 }
 
 .statqty{
-  min-width: 34px;
   text-align: right;
   color: var(--text);
   font-weight: 800;
@@ -403,8 +415,11 @@ body.theme-light .statdots{
   opacity: 0.8;
 }
 
-.statend{ gap: 4px; }
 .statref{ min-width: 0; }
+
+.statname{ padding-right: 3px; }
+.statend { padding-left: 3px; }
+
 
 
 
@@ -532,7 +547,6 @@ body.theme-light .statdots{
 .icon-btn{
   position:absolute;
   left: 10px;
-  top: 6px;
   width: 32px;
   height: 32px;
   border-radius: 10px;
@@ -541,6 +555,11 @@ body.theme-light .statdots{
   color: var(--text);
   cursor: pointer;
 }
+
+.icon-btn { top: 10px; }
+.version  { top: 16px; }
+.topbar   { height: 52px; display:flex; align-items:center; justify-content:center; }
+
 
 /* --- Switch UI --- */
 .setting-row{
@@ -552,7 +571,7 @@ body.theme-light .statdots{
   padding: 10px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(255,255,255,0.02);
+  background: var(--bg)
 }
 .setting-title{ font-weight: 700; }
 .setting-sub{ opacity: 0.6; font-size: 90%; }
@@ -591,12 +610,13 @@ body.theme-light .statdots{
 }
 
 /* --- Left-handed layout: swap CLI row order --- */
-body.hand-left .cli-row{
+body.hand-left .cli-row {
   flex-direction: row-reverse;
 }
-body.hand-left #addGroup{
+
+body.hand-left #addGroup {
   right: auto;
-  left: 12px;
+  left: 0;
 }
 
 /* --- Light theme (simple) --- */
@@ -624,11 +644,20 @@ body.theme-light .group.selected{
 /* persistent nudge when mode not selected */
 @keyframes needsGlow {
   0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(74,222,128,0); }
-  50% { transform: scale(1.02); box-shadow: 0 0 0 1px rgba(74,222,128,0.25); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 1px rgba(74,222,128,0.5); }
 }
 
-.group.selected .stats .title.mode.needs{
+.group.selected .stats .title.mode.needs[data-mode="geleverd"] {
   animation: needsGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes needsGlowRetour {
+  0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 1px rgba(74,222,222,0.5); }
+}
+
+.group.selected .stats .title.mode.needs[data-mode="retour"] {
+  animation: needsGlowRetour 1.2s ease-in-out infinite;
 }
 
 .suggestions{
@@ -660,7 +689,6 @@ body.theme-light .group.selected{
 .suggestions:empty { display: none; margin: 0; }
 
 /* reduce container gap when only the input row exists */
-.cli-container { gap: 0; }
 .cli-row { margin-top: 0; }
 
 
@@ -687,15 +715,79 @@ body.theme-light .group.selected{
   align-self: stretch;
 }
 
-.cli-container{
+.cli-container {
   position: fixed;
+  gap: 0;
   left: 0;
   right: 0;
-  bottom: var(--vv-bottom, 0px);
+  bottom: calc(var(--vv-bottom, 0px) + env(safe-area-inset-bottom));
   z-index: 1000;
 }
 
 .cli-inner {
   will-change: transform;
   transform: translateZ(0);
+}
+
+.group h2 {
+  margin: 0;
+  font-size: 150%;
+}
+
+
+
+.statline{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+  column-gap: 3px;
+  position: relative;
+  margin: 2px 0;
+}
+
+/* dotted leader across the full row */
+.statline::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:1.05em; /* baseline-ish */
+  height:1px;
+  background-image: radial-gradient(rgba(255,255,255,0.25) 0.7px, transparent 0.7px);
+  background-size: 3px 1px;
+  background-repeat: repeat-x;
+  pointer-events:none;
+}
+body.theme-light .statline::before{
+  background-image: radial-gradient(rgba(0,0,0,0.25) 0.7px, transparent 0.7px);
+}
+
+/* IMPORTANT: no background masking on the grid cells */
+.statname,
+.statend{
+  background: transparent;
+}
+
+/* mask dots ONLY behind the actual text (per wrapped line) */
+.statlabel,
+.statendinner{
+  background: var(--card);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.statlabel{ padding-right: 3px; }
+.statendinner{ padding-left: 3px; }
+
+.statname{
+  min-width: 0;
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* keep qty+ref together */
+.statend{
+  display: inline-flex;
+  white-space: nowrap;
 }
