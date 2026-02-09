@@ -36,12 +36,20 @@ export async function parseAndExecute(input, groupName, mode) {
 }
 
 function parsePart(p) {
-  // 12k OR k12
-  let m = p.match(/^(\d+)([a-z]{1,12})$/i);
-  if (m) return { value: Number(m[1]), alias: m[2].toLowerCase() };
+  // Supports:
+  //  12k, -12k, +12k
+  //  k12, k-12, k+12
+  let m = p.match(/^([+-]?)(\d+)([a-z]{1,12})$/i);
+  if (m) {
+    const sign = m[1] === '-' ? -1 : 1;
+    return { value: sign * Number(m[2]), alias: m[3].toLowerCase() };
+  }
 
-  m = p.match(/^([a-z]{1,12})(\d+)$/i);
-  if (m) return { value: Number(m[2]), alias: m[1].toLowerCase() };
+  m = p.match(/^([a-z]{1,12})([+-]?)(\d+)$/i);
+  if (m) {
+    const sign = m[2] === '-' ? -1 : 1;
+    return { value: sign * Number(m[3]), alias: m[1].toLowerCase() };
+  }
 
   return null;
 }

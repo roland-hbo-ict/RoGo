@@ -62,8 +62,8 @@ body.hand-left .version{
 
 /* App wrapper */
 #app {
-  min-height: 100dvh;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  /* min-height: 100dvh; */
+  padding-bottom: 50vw;
 }
 
 /* Group cards */
@@ -80,7 +80,12 @@ body.hand-left .version{
 
 .group.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.group.selected:has(.active[data-mode="retour"]) {
+  border-color: var(--retour);
+  box-shadow: 0 0 0 2px var(--retour);
 }
 
 .group .line {
@@ -201,6 +206,10 @@ body.hand-left .version{
 .chip.good {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+body:has(.active[data-mode="retour"]) .chip.good {
+  border-color: var(--retour);
 }
 
 .chip.bad {
@@ -791,3 +800,5 @@ body.theme-light .statline::before{
   display: inline-flex;
   white-space: nowrap;
 }
+
+.row .delta.neg { color: var(--danger); }

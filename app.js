@@ -139,11 +139,10 @@ function sumInputTotals(input) {
 }
 
 function formatTotals(totals) {
-  const defs = getTokenDefs();
   const out = [];
-
   for (const k of TOKEN_ORDER) {
-    if ((totals[k] || 0) > 0) out.push(`${totals[k]}${displayKey(defs, k)}`);
+    const v = totals[k] || 0;
+    if (v !== 0) out.push(`${v}${k}`);
   }
   return out.join(' ') || '…';
 }
@@ -165,14 +164,13 @@ function renderMixedRows(current, delta, showDelta) {
   for (const k of order) {
     const cur = current[k] || 0;
     const d = delta[k] || 0;
-
-    if (d > 0) {
+    if (d !== 0) {
       lines.push(`
         <div class="row">
           <span class="k">${displayKey(getTokenDefs(), k)}</span>
           <span class="cur">${cur}</span>
           <span class="arrow">→</span>
-          <span class="delta">+${d}</span>
+          <span class="delta ${d < 0 ? 'neg' : ''}">${d > 0 ? '+' : ''}${d}</span>
           <span class="arrow">→</span>
           <span class="res">${cur + d}</span>
         </div>
@@ -219,7 +217,7 @@ function renderPlainRows(current) {
 }
 
 function hasAnyDelta(delta) {
-  return Object.values(delta).some(v => v > 0);
+  return Object.values(delta).some(v => v !== 0);
 }
 
 function emptyTotals() {
@@ -341,7 +339,7 @@ cmd.addEventListener('input', () => {
 
     const chip = document.createElement('div');
     chip.className = 'chip ' + (ok ? 'good' : 'bad');
-    chip.textContent = ok ? `+${value} ${alias}` : p;
+    chip.textContent = ok ? `${value > 0 ? '+' : ''}${value} ${alias}` : p;
     chipsEl.appendChild(chip);
   }
 
@@ -480,11 +478,17 @@ document.getElementById('confirmModal').onclick = async () => {
 };
 
 function parsePart(p) {
-  let m = p.match(/^(\d+)([a-z]{1,12})$/i);
-  if (m) return { value: Number(m[1]), alias: m[2].toLowerCase(), raw: p };
+  let m = p.match(/^([+-]?)(\d+)([a-z]{1,12})$/i);
+  if (m) {
+    const sign = m[1] === '-' ? -1 : 1;
+    return { value: sign * Number(m[2]), alias: m[3].toLowerCase(), raw: p };
+  }
 
-  m = p.match(/^([a-z]{1,12})(\d+)$/i);
-  if (m) return { value: Number(m[2]), alias: m[1].toLowerCase(), raw: p };
+  m = p.match(/^([a-z]{1,12})([+-]?)(\d+)$/i);
+  if (m) {
+    const sign = m[2] === '-' ? -1 : 1;
+    return { value: sign * Number(m[3]), alias: m[1].toLowerCase(), raw: p };
+  }
 
   return null;
 }
