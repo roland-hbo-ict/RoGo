@@ -138,6 +138,24 @@ function sumInputTotals(input) {
   return totals;
 }
 
+function findNegativeTotals(currentTotals, deltaTotals) {
+  const defs = getTokenDefs();
+  const problems = [];
+
+  for (const k of TOKEN_ORDER) {
+    const cur = Number(currentTotals?.[k] || 0);
+    const d = Number(deltaTotals?.[k] || 0);
+    const next = cur + d;
+
+    if (next < 0) {
+      const name = defs?.[k]?.name_nl || k;
+      problems.push({ key: k, name, cur, d, next });
+    }
+  }
+
+  return problems;
+}
+
 function formatTotals(totals) {
   const out = [];
   for (const k of TOKEN_ORDER) {
@@ -145,6 +163,11 @@ function formatTotals(totals) {
     if (v !== 0) out.push(`${v}${k}`);
   }
   return out.join(' ') || '…';
+}
+
+function buildActionLine(groupName, mode, deltaTotals) {
+  const modeLabel = mode === 'retour' ? 'retour' : 'geleverd'; // later: t('retour')/t('geleverd')
+  return `${groupName} · ${modeLabel} → ${formatTotals(deltaTotals)}`;
 }
 
 function tokenNameNL(defs, id) {
@@ -194,14 +217,12 @@ function renderPlainRows(current) {
 
   return (
     order
-      .filter(k => (current[k] || 0) > 0)
+      .filter(k => (current[k] || 0) != 0)
       .map(k => {
         const name = tokenNameNL(defs, k);
         const ref = displayKey(defs, k);
 
         return `
-
-
           <div class="statline">
             <span class="statname"><span class="statlabel">${name}</span></span>
             <span class="statend"><span class="statendinner">
@@ -216,6 +237,48 @@ function renderPlainRows(current) {
   );
 }
 
+function renderPlainPaired(geleverdTotals, retourTotals) {
+  const defs = getTokenDefs();
+
+  const left = [];
+  const right = [];
+
+  for (const k of TOKEN_ORDER) {
+    const g = Number(geleverdTotals?.[k] || 0);
+    const r = Number(retourTotals?.[k] || 0);
+
+    // Only show tokens that appear in either column (union)
+    if (g === 0 && r === 0) continue;
+
+    const name = displayKey(defs, k);
+
+    left.push(`
+      <div class="statline ${g === 0 ? 'zero' : ''}">
+        <span class="statname"><span class="statlabel">${name}</span></span>
+        <span class="statend"><span class="statendinner">
+          <span class="statqty">${g}</span>
+          <span class="statref">${k}</span>
+        </span></span>
+      </div>
+    `);
+
+    right.push(`
+      <div class="statline ${r === 0 ? 'zero' : ''}">
+        <span class="statname"><span class="statlabel">${name}</span></span>
+        <span class="statend"><span class="statendinner">
+          <span class="statqty">${r}</span>
+          <span class="statref">${k}</span>
+        </span></span>
+      </div>
+    `);
+  }
+
+  return {
+    geleverd: left.join('') || `<div class="row muted">—</div>`,
+    retour: right.join('') || `<div class="row muted">—</div>`
+  };
+}
+
 function hasAnyDelta(delta) {
   return Object.values(delta).some(v => v !== 0);
 }
@@ -226,6 +289,8 @@ function emptyTotals() {
 
 async function load() {
   const groups = await getGroupsWithTotals();
+  const selectedObj = groups.find(g => g.name === selectedGroup);
+  window.__selectedTotals = selectedObj?.totals || Object.fromEntries(TOKEN_ORDER.map(k => [k, 0]));
   list.innerHTML = '';
 
   for (const g of groups) {
@@ -346,12 +411,42 @@ cmd.addEventListener('input', () => {
   // preview shows total of what user typed
   if (selectedGroup && selectedMode) {
     const totals = sumInputTotals(cmd.value);
-    preview.textContent = `${selectedGroup} · ${selectedMode} → ${formatTotals(totals)}`;
+    // preview.textContent = `${selectedGroup} · ${selectedMode} → ${formatTotals(totals)}`;
+    preview.textContent = buildActionLine(selectedGroup, selectedMode, totals);
   } else {
     preview.textContent = '';
   }
 
-    // --- suggestions (non-clickable for now) ---
+  // --- negative-total guard ---
+  const sendBtn = document.getElementById('send');
+
+  if (!selectedGroup || !selectedMode) {
+    if (sendBtn) sendBtn.disabled = true;
+    return;
+  }
+
+  // If you already compute this elsewhere, reuse it:
+  const deltaTotals = sumInputTotals(cmd.value);
+
+  const currentTotals = (window.__selectedTotals || null); // see 2.4
+  const problems = findNegativeTotals(currentTotals, deltaTotals);
+
+  if (problems.length) {
+    const p = problems[0]; // show first problem only (keeps it short)
+    if (feedback) {
+      feedback.textContent = `⚠ Te laag: ${p.name} (${p.cur} → ${p.next})`;
+    }
+    if (sendBtn) sendBtn.disabled = true;
+    if (preview) preview.classList.add('warn');
+  } else {
+    if (sendBtn) sendBtn.disabled = cmd.value.trim().length === 0;
+    if (preview) preview.classList.remove('warn');
+    // don’t clear feedback if you use feedback for other things;
+    // but if you want warnings to clear automatically:
+    // if (feedback && feedback.textContent.startsWith('⚠')) feedback.textContent = '';
+  }
+
+  // --- suggestions (non-clickable for now) ---
   if (suggestionsEl) suggestionsEl.innerHTML = '';
 
   const cleaned = cmd.value.trim();
@@ -359,10 +454,11 @@ cmd.addEventListener('input', () => {
   const last = parts2[parts2.length - 1] || '';
 
   if (last && suggestionsEl) {
-    // If "11bier" -> suggest based on "bier"
-    const m2 = last.match(/^(\d+)([a-z]{1,12})$/i);
-    if (m2) {
-      const alias = m2[2].toLowerCase();
+    const parsedLast = parsePart(last);
+
+    if (parsedLast) {
+      // Works for both "11bier" and "bier11" (and +/- variants)
+      const alias = parsedLast.alias;
       if (!aliasMap[alias]) {
         const hits = searchTokens(defs, alias, 6);
         for (const id of hits) {
@@ -373,7 +469,7 @@ cmd.addEventListener('input', () => {
         }
       }
     } else {
-      // If "bier" -> show matches if ambiguous
+      // Plain text query like "bier"
       const q = last.toLowerCase();
       if (!aliasMap[q] && q.length >= 2) {
         const hits = searchTokens(defs, q, 6);
@@ -389,14 +485,15 @@ cmd.addEventListener('input', () => {
     }
   }
 
-  // simple: re-render for computed delta rows
   load();
 });
 
 async function send() {
   try {
     await parseAndExecute(cmd.value, selectedGroup, selectedMode);
-    feedback.textContent = '✔ Saved';
+    const deltaTotals = sumInputTotals(cmd.value);
+    const savedLine = buildActionLine(selectedGroup, selectedMode, deltaTotals);
+    feedback.textContent = `✔ Saved ${savedLine}`;
 
     preview.classList.remove('pulse');
     void preview.offsetWidth;
@@ -460,6 +557,8 @@ document.getElementById('confirmModal').onclick = async () => {
 
   await ensureGroup(name);
 
+  if (navigator.vibrate) navigator.vibrate(25);
+
   // Select the new group, but force user to pick mode (safer UX)
   selectedGroup = name;
   selectedMode = null;
@@ -478,6 +577,9 @@ document.getElementById('confirmModal').onclick = async () => {
 };
 
 function parsePart(p) {
+  // Supports:
+  //  12k, -12k, +12k
+  //  k12, k-12, k+12
   let m = p.match(/^([+-]?)(\d+)([a-z]{1,12})$/i);
   if (m) {
     const sign = m[1] === '-' ? -1 : 1;

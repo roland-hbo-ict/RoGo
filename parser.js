@@ -36,9 +36,6 @@ export async function parseAndExecute(input, groupName, mode) {
 }
 
 function parsePart(p) {
-  // Supports:
-  //  12k, -12k, +12k
-  //  k12, k-12, k+12
   let m = p.match(/^([+-]?)(\d+)([a-z]{1,12})$/i);
   if (m) {
     const sign = m[1] === '-' ? -1 : 1;

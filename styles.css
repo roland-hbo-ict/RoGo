@@ -264,6 +264,7 @@ body:has(.active[data-mode="retour"]) .chip.good {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+  justify-content: flex-end;
 }
 
 .modal-actions button {
@@ -273,8 +274,9 @@ body:has(.active[data-mode="retour"]) .chip.good {
   border: none;
 }
 
-
-
+body.hand-left .modal-actions {
+  flex-direction: row-reverse;
+}
 
 .totals {
   display: grid;
@@ -802,3 +804,47 @@ body.theme-light .statline::before{
 }
 
 .row .delta.neg { color: var(--danger); }
+
+#preview.warn{
+  color: var(--danger);
+  border-left: 3px solid var(--danger);
+  padding-left: 10px;
+}
+
+#send:disabled{
+  opacity: 0.5;
+}
+
+#feedback{ font-weight: 600; }
+
+.create-btn {
+  background: #1fa463; /* or define --success */
+  border: 1px solid var(--accent);
+  color: white;
+  font-weight: 600;
+  padding: 12px 20px;
+}
+
+.create-btn:hover {
+  filter: brightness(1.1);
+}
+
+.cancel-btn {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  opacity: 0.85;
+}
+
+.cancel-btn:hover {
+  background: var(--danger);
+  color: white;
+}
+
+.statline.zero .statlabel,
+.statline.zero .statqty,
+.statline.zero .statref {
+  color: var(--danger);
+}
+
+.statline.zero { opacity: 0.9; }
