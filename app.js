@@ -58,6 +58,80 @@ const I18N = {
   }
 };
 
+let deferredInstallPrompt = null;
+
+const installRow  = document.getElementById('installRow');
+const installBtn  = document.getElementById('installBtn');
+const installHint = document.getElementById('installHint');
+
+function isStandalone() {
+  // iOS uses navigator.standalone, others use display-mode
+  return window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
+}
+
+function showInstallUI(reasonText) {
+  if (!installRow || !installBtn || !installHint) return;
+
+  installRow.style.display = 'flex';
+  if (reasonText) installHint.textContent = reasonText;
+
+  // If already installed, disable button
+  if (isStandalone()) {
+    installBtn.disabled = true;
+    installBtn.textContent = 'Installed';
+  }
+}
+
+function hideInstallUI() {
+  if (!installRow) return;
+  installRow.style.display = 'none';
+}
+
+// Fired on Chrome/Edge/Android when install is possible
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  showInstallUI('Install RoGo as an app');
+});
+
+// If user installs via browser UI
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  showInstallUI('Installed ✓');
+});
+
+if (installBtn) {
+  installBtn.addEventListener('click', async () => {
+    // If already installed, do nothing
+    if (isStandalone()) return;
+
+    // iOS/Safari: no beforeinstallprompt -> show instructions
+    if (!deferredInstallPrompt) {
+      showInstallUI('On iPhone: Share → “Add to Home Screen”');
+      return;
+    }
+
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+
+    if (choice?.outcome === 'accepted') {
+      showInstallUI('Installed ✓');
+    } else {
+      showInstallUI('Install dismissed');
+    }
+  });
+}
+
+// Initial state when opening app:
+// - If already installed: show "Installed"
+// - If not installable yet: hide (or show iOS hint if you want)
+if (isStandalone()) {
+  showInstallUI('Installed ✓');
+} else {
+  hideInstallUI();
+}
+
 function focusCmdSoon() {
   // next frame: after DOM + disabled state settles
   requestAnimationFrame(() => {
@@ -230,7 +304,6 @@ function renderPlainRows(current) {
               <span class="statref">${ref}</span>
             </span></span>
           </div>
-
         `;
       })
       .join('') || `<div class="row plain muted">—</div>`
@@ -250,14 +323,15 @@ function renderPlainPaired(geleverdTotals, retourTotals) {
     // Only show tokens that appear in either column (union)
     if (g === 0 && r === 0) continue;
 
-    const name = displayKey(defs, k);
+    const name = tokenNameNL(defs, k);
+    const ref = displayKey(defs, k);
 
     left.push(`
       <div class="statline ${g === 0 ? 'zero' : ''}">
         <span class="statname"><span class="statlabel">${name}</span></span>
         <span class="statend"><span class="statendinner">
           <span class="statqty">${g}</span>
-          <span class="statref">${k}</span>
+          <span class="statref">${ref}</span>
         </span></span>
       </div>
     `);
@@ -267,7 +341,7 @@ function renderPlainPaired(geleverdTotals, retourTotals) {
         <span class="statname"><span class="statlabel">${name}</span></span>
         <span class="statend"><span class="statendinner">
           <span class="statqty">${r}</span>
-          <span class="statref">${k}</span>
+          <span class="statref">${ref}</span>
         </span></span>
       </div>
     `);
@@ -309,15 +383,15 @@ async function load() {
       ? `<div class="title mode ${selectedMode === 'retour' ? 'active' : ''} ${needsMode ? 'needs' : ''}" data-mode="retour">${t('returned')}</div>`
       : `<div class="title">${t('returned')}</div>`;
 
+    const pairedPlain = renderPlainPaired(g.geleverd, g.retour);
     const geleverdBlock =
       (isSelected && selectedMode === 'geleverd')
         ? renderMixedRows(g.geleverd, deltaTotals, showDelta)
-        : renderPlainRows(g.geleverd);
-
+        : pairedPlain.geleverd;
     const retourBlock =
       (isSelected && selectedMode === 'retour')
         ? renderMixedRows(g.retour, deltaTotals, showDelta)
-        : renderPlainRows(g.retour);
+        : pairedPlain.retour;
 
     list.innerHTML += `
       <div class="group ${isSelected ? 'selected' : ''}" data-name="${g.name}">

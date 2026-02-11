@@ -59,6 +59,17 @@
   <div class="modal">
     <h3>Settings</h3>
 
+    <div class="setting-row" id="installRow" style="display:none;">
+      <div>
+        <div class="setting-title">Install</div>
+        <div class="setting-sub" id="installHint">Install RoGo as an app</div>
+      </div>
+
+      <button id="installBtn" class="btn install-btn" type="button">
+        Install
+      </button>
+    </div>
+
     <div class="setting-row">
       <div>
         <div class="setting-title">Language</div>
@@ -96,7 +107,7 @@
     <div class="setting-row">
       <div>
         <div class="setting-title">Continuous creation</div>
-        <div class="setting-sub">Keep popup open</div>
+        <div class="setting-sub">Keep creation popup open</div>
       </div>
       <label class="switch">
         <input id="continuousCreateToggle" type="checkbox" />

@@ -239,6 +239,7 @@ body:has(.active[data-mode="retour"]) .chip.good {
 
 /* Modal panel (the card itself) should fit inside the visual viewport */
 .modal {
+  margin-top: 50px;
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
@@ -848,3 +849,16 @@ body.theme-light .statline::before{
 }
 
 .statline.zero { opacity: 0.9; }
+
+.install-btn{
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.install-btn:disabled{
+  opacity: 0.6;
+}
