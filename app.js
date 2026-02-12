@@ -730,6 +730,67 @@ const handToggle = document.getElementById('handToggle');
 const langSelect = document.getElementById('langSelect');
 const suggestionsEl = document.getElementById('suggestions');
 const continuousCreateToggle = document.getElementById('continuousCreateToggle');
+const resetBtn = document.getElementById('resetBtn');
+if (resetBtn) resetBtn.addEventListener('click', resetAppDataAndReload);
+
+async function resetAppDataAndReload() {
+  const ok = confirm(
+    "Reset RoGo?\n\nThis deletes ALL local data on this device and reloads the app."
+  );
+  if (!ok) return;
+
+  try {
+    /* ---------- STORAGE ---------- */
+    try { localStorage.clear(); } catch {}
+    try { sessionStorage.clear(); } catch {}
+
+    /* ---------- INDEXED DB ---------- */
+    try { indexedDB.deleteDatabase('logistics-db'); } catch {}
+
+    if (indexedDB.databases) {
+      try {
+        const dbs = await indexedDB.databases();
+        await Promise.all((dbs || []).map(db =>
+          new Promise(res => {
+            if (!db?.name) return res();
+            const req = indexedDB.deleteDatabase(db.name);
+            req.onsuccess = req.onerror = req.onblocked = () => res();
+          })
+        ));
+      } catch {}
+    }
+
+    /* ---------- CACHE STORAGE ---------- */
+    if ('caches' in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      } catch {}
+    }
+
+    /* ---------- SERVICE WORKERS ---------- */
+    if ('serviceWorker' in navigator) {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      } catch {}
+    }
+
+    /* ---------- COOKIES (non-HttpOnly only) ---------- */
+    try {
+      document.cookie.split(';').forEach(c => {
+        const eq = c.indexOf('=');
+        const name = (eq > -1 ? c.slice(0, eq) : c).trim();
+        if (!name) return;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+      });
+    } catch {}
+
+  } finally {
+    /* ---------- HARD RELOAD ---------- */
+    setTimeout(() => location.reload(), 400);
+  }
+}
 
 function applySettingsFromStorage() {
   const theme = localStorage.getItem('rogo_theme') || 'dark';

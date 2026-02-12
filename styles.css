@@ -862,3 +862,17 @@ body.theme-light .statline::before{
 .install-btn:disabled{
   opacity: 0.6;
 }
+
+.danger-btn{
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.danger-btn:hover{
+  background: var(--danger);
+  color: #fff;
+}
