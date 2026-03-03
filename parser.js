@@ -28,6 +28,7 @@ export async function parseAndExecute(input, groupName, mode) {
 
   await addEvent({
     groupId,
+    groupName: groupName,
     target: mode, // 'geleverd' | 'retour'
     ...amounts
   });

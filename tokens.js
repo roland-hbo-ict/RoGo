@@ -8,7 +8,7 @@ export const TOKEN_ORDER = [
   'box',                  // €80.00
   'rood',                 // €12.50
   'hoes',                 // €200.00
-  'donkergroen',          // €4.26
+  'eps',                  // €4.26
   'cbl',                  // unknown
   'kleinblauw',           // €0.90
   'europallet',           // €22.50
@@ -39,7 +39,7 @@ export const DEFAULT_TOKENS = {
     defaultRef: 'k',
     userRef: 'g', // your personal letter
     aliases: ['k', 'g', 'krat'],
-    keywords: ['emballage', 'krat', 'totaalvers']
+    keywords: ['emballage', 'krat', 'klapkrat', 'totaalvers']
   },
 
   container: {
@@ -86,14 +86,14 @@ export const DEFAULT_TOKENS = {
     keywords: ['diepvries', 'hoes', 'cover']
   },
 
-  donkergroen: {
-    id: 'donkergroen',
+  eps: {
+    id: 'eps',
     type: 'crate',
     name_nl: 'EPS Klapkrat donkergroen',
     value_eur: 4.26,
-    defaultRef: 'dg',
-    userRef: 'dg',
-    aliases: ['dg', 'donkergroen', 'donker', 'groen'],
+    defaultRef: 'eps',
+    userRef: 'eps',
+    aliases: ['eps', 'donkergroen', 'donker', 'groen', 'dg'],
     keywords: ['eps', 'klapkrat', 'donkergroen', 'donker', 'groen']
   },
 

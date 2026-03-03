@@ -40,12 +40,19 @@ export async function ensureGroup(name) {
   const found = groups.find(g => g.name === name);
   if (found) return found.id;
 
-  return req(
+  const id = await req(
     store('groups', 'readwrite').add({
       name,
       createdAt: Date.now()
     })
   );
+  await addEvent({
+    kind: 'lifecycle',
+    action: 'created',
+    groupId: id,
+    groupName: name
+  });
+  return id;
 }
 
 export async function addEvent(evt) {
@@ -78,4 +85,81 @@ export async function getGroupsWithTotals() {
       retour: sum('retour')
     };
   });
+}
+
+export async function renameGroup(groupId, newName) {
+  await openDB();
+
+  const id = Number(groupId);
+  const name = String(newName || '').trim();
+  if (!name) throw new Error('Name is empty');
+
+  const groups = await req(store('groups').getAll());
+  const existing = groups.find(g => g.name.toLowerCase() === name.toLowerCase() && g.id !== id);
+  if (existing) throw new Error('Name already exists');
+
+  const os = store('groups', 'readwrite');
+  const g = await req(os.get(id));
+  if (!g) throw new Error('Group not found');
+  const oldName = g.name;
+
+  g.name = name;
+  await req(os.put(g));
+  await addEvent({
+    kind: 'lifecycle',
+    action: 'renamed',
+    groupId: id,
+    groupName: name,
+    oldName,
+    newName: name
+  });
+  return g.name;
+}
+
+export async function deleteGroups(groupIds) {
+  await openDB();
+
+  const ids = [...new Set((groupIds || []).map(Number).filter(Number.isFinite))];
+  if (!ids.length) return 0;
+
+  const groups = await req(store('groups').getAll());
+  const byId = new Map(groups.map(g => [Number(g.id), g]));
+
+  const tx = db.transaction(['groups', 'events'], 'readwrite');
+  const groupsOS = tx.objectStore('groups');
+  const eventsOS = tx.objectStore('events');
+
+  for (const id of ids) {
+    const g = byId.get(id);
+    eventsOS.add({
+      timestamp: Date.now(),
+      kind: 'lifecycle',
+      action: 'deleted',
+      groupId: id,
+      groupName: g?.name || String(id)
+    });
+    groupsOS.delete(id);
+  }
+
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+
+  return ids.length;
+}
+
+export async function getHistoryEvents({ groupId = null, limit = 500 } = {}) {
+  await openDB();
+  const events = await req(store('events').getAll());
+  const id = groupId == null ? null : Number(groupId);
+
+  const filtered = events.filter(e => {
+    if (id == null) return true;
+    return Number(e.groupId) === id;
+  });
+
+  filtered.sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  return filtered.slice(0, Math.max(1, Number(limit) || 500));
 }
