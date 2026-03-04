@@ -13,8 +13,8 @@
 <header class="topbar">
   <h1>RoGo</h1>
 
-  <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
-    ⚙
+  <button id="panelBtn" class="icon-btn" aria-label="Open panel" title="Open panel">
+    ←
   </button>
 
   <span class="version" id="version"></span>
@@ -29,6 +29,145 @@
     <button id="selDelete" type="button" class="btn danger-btn">Delete</button>
   </div>
   <main id="list"></main>
+</div>
+
+<!-- Left Side Panel -->
+<div id="sidePanelBackdrop" class="sidepanel-backdrop hidden">
+  <aside id="sidePanel" class="sidepanel">
+    <div class="sidepanel-top">
+      <input id="panelSearch" placeholder="Search..." autocomplete="off" />
+      <button id="panelSettingsBtn" class="icon-btn panel-gear" aria-label="Settings" title="Settings">⚙</button>
+    </div>
+
+    <section class="sidepanel-section panel-section" data-title="projects">
+      <div class="sidepanel-title">Projects</div>
+      <div class="sidepanel-create-wrap">
+        <div class="sidepanel-row sidepanel-row-create">
+          <input id="newProjectName" placeholder="New project name" autocomplete="off" />
+          <button id="createProjectBtn" class="btn install-btn" type="button">Create</button>
+          <button id="createProjectModeBtn" class="btn install-btn sidepanel-mode-toggle" type="button" aria-label="Create mode" title="Create mode">▾</button>
+        </div>
+        <div id="createProjectModeMenu" class="panel-project-menu panel-create-menu">
+          <button id="createModeNewBtn" class="btn install-btn" data-mode="new" type="button">Create new</button>
+          <button id="createModeTemplateBtn" class="btn install-btn" data-mode="template" type="button">Use template</button>
+        </div>
+      </div>
+      <div id="createProjectTemplateRow" class="sidepanel-row sidepanel-template-source hidden">
+        <select id="createProjectTemplateSelect" class="select"></select>
+      </div>
+      <div id="projectList" class="panel-list"></div>
+    </section>
+
+    <section class="sidepanel-section panel-section" data-title="templates">
+      <div class="sidepanel-title">Templates</div>
+      <div id="templateList" class="panel-list"></div>
+    </section>
+
+    <section class="sidepanel-section panel-section" data-title="settings">
+      <div class="sidepanel-title" id="settingsTitle">Settings</div>
+
+      <div class="setting-row" id="installRow" style="display:none;">
+        <div>
+          <div id="installTitle" class="setting-title">Install</div>
+          <div class="setting-sub" id="installHint">Install RoGo as an app</div>
+        </div>
+
+        <button id="installBtn" class="btn install-btn" type="button">
+          Install
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="resetTitle" class="setting-title">Reset app</div>
+          <div id="resetSub" class="setting-sub">Clear all local data + refresh</div>
+        </div>
+
+        <button id="resetBtn" class="btn danger-btn" type="button">
+          Reset
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="importTitle" class="setting-title">Import customers</div>
+          <div id="importSub" class="setting-sub">Paste copied customer text</div>
+        </div>
+
+        <button id="importCardsBtn" class="btn install-btn" type="button">
+          Import
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="reorderTitle" class="setting-title">Re-order customers</div>
+          <div id="reorderSub" class="setting-sub">Move names without details</div>
+        </div>
+
+        <button id="reorderCardsBtn" class="btn install-btn" type="button">
+          Re-order
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="historyGlobalTitle" class="setting-title">Global history</div>
+          <div id="historyGlobalSub" class="setting-sub">All customer events</div>
+        </div>
+
+        <button id="openGlobalHistoryBtn" class="btn install-btn" type="button">
+          Open
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="languageTitle" class="setting-title">Language</div>
+          <div id="languageSub" class="setting-sub">Dutch / English</div>
+        </div>
+
+        <select id="langSelect" class="select">
+          <option value="nl">Nederlands</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="cardLayoutTitle" class="setting-title">Customer layout</div>
+          <div id="cardLayoutSub" class="setting-sub">Classic / Compact</div>
+        </div>
+
+        <select id="cardLayoutSelect" class="select">
+          <option value="compact">Compact</option>
+          <option value="classic">Classic</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="themeTitle" class="setting-title">Theme</div>
+          <div id="themeSub" class="setting-sub">Dark / Light</div>
+        </div>
+        <label class="switch">
+          <input id="themeToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="handedTitle" class="setting-title">Handedness</div>
+          <div id="handedSub" class="setting-sub">Buttons on left</div>
+        </div>
+        <label class="switch">
+          <input id="handToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </section>
+  </aside>
 </div>
 
 <!-- CLI -->
@@ -54,118 +193,6 @@
     <div class="modal-actions">
       <button id="cancelModal" class="btn cancel-btn" type="button">Cancel</button>
       <button id="confirmModal" class="btn create-btn" type="button">Create</button>
-    </div>
-  </div>
-</div>
-
-<!-- Settings Modal -->
-<div id="settingsBackdrop" class="modal-backdrop hidden">
-  <div class="modal">
-    <h3 id="settingsTitle">Settings</h3>
-
-    <div class="setting-row" id="installRow" style="display:none;">
-      <div>
-        <div id="installTitle" class="setting-title">Install</div>
-        <div class="setting-sub" id="installHint">Install RoGo as an app</div>
-      </div>
-
-      <button id="installBtn" class="btn install-btn" type="button">
-        Install
-      </button>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="resetTitle" class="setting-title">Reset app</div>
-        <div id="resetSub" class="setting-sub">Clear all local data + refresh</div>
-      </div>
-
-      <button id="resetBtn" class="btn danger-btn" type="button">
-        Reset
-      </button>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="importTitle" class="setting-title">Import customers</div>
-        <div id="importSub" class="setting-sub">Paste copied customer text</div>
-      </div>
-
-      <button id="importCardsBtn" class="btn install-btn" type="button">
-        Import
-      </button>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="reorderTitle" class="setting-title">Re-order customers</div>
-        <div id="reorderSub" class="setting-sub">Move names without details</div>
-      </div>
-
-      <button id="reorderCardsBtn" class="btn install-btn" type="button">
-        Re-order
-      </button>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="historyGlobalTitle" class="setting-title">Global history</div>
-        <div id="historyGlobalSub" class="setting-sub">All customer events</div>
-      </div>
-
-      <button id="openGlobalHistoryBtn" class="btn install-btn" type="button">
-        Open
-      </button>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="languageTitle" class="setting-title">Language</div>
-        <div id="languageSub" class="setting-sub">Dutch / English</div>
-      </div>
-
-      <select id="langSelect" class="select">
-        <option value="nl">Nederlands</option>
-        <option value="en">English</option>
-      </select>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="cardLayoutTitle" class="setting-title">Customer layout</div>
-        <div id="cardLayoutSub" class="setting-sub">Classic / Compact</div>
-      </div>
-
-      <select id="cardLayoutSelect" class="select">
-        <option value="compact">Compact</option>
-        <option value="classic">Classic</option>
-      </select>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="themeTitle" class="setting-title">Theme</div>
-        <div id="themeSub" class="setting-sub">Dark / Light</div>
-      </div>
-      <label class="switch">
-        <input id="themeToggle" type="checkbox" />
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="setting-row">
-      <div>
-        <div id="handedTitle" class="setting-title">Handedness</div>
-        <div id="handedSub" class="setting-sub">Buttons on left</div>
-      </div>
-      <label class="switch">
-        <input id="handToggle" type="checkbox" />
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="modal-actions">
-      <button id="closeSettings" type="button">Close</button>
     </div>
   </div>
 </div>
@@ -201,6 +228,17 @@
     <div id="historyList" class="history-list"></div>
     <div class="modal-actions">
       <button id="closeHistory" class="btn cancel-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Template Preview Modal -->
+<div id="templatePreviewBackdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h3 id="templatePreviewModalTitle">Template preview</h3>
+    <div id="templatePreviewList" class="history-list"></div>
+    <div class="modal-actions">
+      <button id="closeTemplatePreview" class="btn cancel-btn" type="button">Close</button>
     </div>
   </div>
 </div>

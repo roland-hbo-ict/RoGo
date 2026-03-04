@@ -1,5 +1,16 @@
 ﻿import { parseAndExecute } from './parser.js';
-import { getGroupsWithTotals, ensureGroup, addEvent, renameGroup, deleteGroups, getHistoryEvents } from './db.js';
+import {
+  getGroupsWithTotals,
+  ensureGroup,
+  addEvent,
+  renameGroup,
+  deleteGroups,
+  getHistoryEvents,
+  setCurrentProject,
+  getCurrentProject,
+  exportProjectSnapshot,
+  replaceProjectWithSnapshot
+} from './db.js';
 import {
   TOKEN_ORDER,
   getTokenDefs,
@@ -30,6 +41,13 @@ let historyTimeMode = 'relative';
 let historyRefreshTimer = null;
 const GROUP_ORDER_KEY = 'rogo_group_order';
 const TOTALS_COLLAPSED_KEY = 'rogo_totals_collapsed';
+const PROJECTS_KEY = 'rogo_projects';
+const CURRENT_PROJECT_KEY = 'rogo_project_current';
+const TEMPLATES_KEY = 'rogo_templates';
+const PANEL_OPEN_ICON_SVG = '<svg class="icon-svg icon-arrow-left" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12H6"/><path d="M11 7L6 12L11 17"/></svg>';
+const PROJECT_MENU_ICON_SVG = '<svg class="icon-svg icon-kebab" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+const PANEL_SETTINGS_ICON_SVG = '<svg class="icon-svg icon-gear" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83a2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2a2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0a2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2a2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83a2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2a2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0a2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>';
+const PANEL_SETTINGS_CLOSE_ICON_SVG = '<svg class="icon-svg icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6L18 18"/><path d="M18 6L6 18"/></svg>';
 
 const I18N = {
   nl: {
@@ -44,6 +62,44 @@ const I18N = {
     cancel: 'Annuleren',
     create: 'Aanmaken',
     settings: 'Instellingen',
+    projects: 'Routes',
+    templates: 'Templates',
+    projectsTitle: 'Routes',
+    templatesTitle: 'Templates',
+    search: 'Zoeken...',
+    newProjectPlaceholder: 'Nieuwe routenaam',
+    templatePlaceholder: 'Template naam',
+    createProject: 'Aanmaken',
+    createMode: 'Aanmaken modus',
+    createModeNew: 'Nieuwe route',
+    createModeTemplate: 'Gebruik template',
+    templateSource: 'Kies template',
+    noTemplates: 'Geen templates beschikbaar',
+    preview: 'Preview',
+    templatePreview: 'Template preview',
+    previewCards: 'Bekijk kaarten',
+    noCardsInTemplate: 'Geen kaarten in deze template',
+    saveTemplate: 'Opslaan',
+    saveAsTemplate: 'Als template opslaan',
+    switchProject: 'Open',
+    rename: 'Naam wijzigen',
+    remove: 'Verwijderen',
+    projectActions: 'Route acties',
+    templateActions: 'Template acties',
+    apply: 'Gebruik',
+    panelOpen: 'Open zijpaneel',
+    projectDeleted: 'Route verwijderd',
+    projectCreated: 'Route aangemaakt',
+    projectRenamed: 'Route hernoemd',
+    templateSaved: 'Template opgeslagen',
+    templateApplied: 'Template toegepast',
+    templateDeleted: 'Template verwijderd',
+    templateRenamed: 'Template hernoemd',
+    cannotDeleteLastProject: 'Minimaal 1 route vereist',
+    confirmDeleteProject: (name) => `Route "${name}" verwijderen?`,
+    confirmDeleteTemplate: (name) => `Template "${name}" verwijderen?`,
+    projectNamePrompt: 'Routenaam',
+    templateNamePrompt: 'Template naam',
     install: 'Installeren',
     import: 'Importeren',
     installRoGoAsApp: 'Installeer RoGo als app',
@@ -122,6 +178,44 @@ const I18N = {
     cancel: 'Cancel',
     create: 'Create',
     settings: 'Settings',
+    projects: 'Routes',
+    templates: 'Templates',
+    projectsTitle: 'Routes',
+    templatesTitle: 'Templates',
+    search: 'Search...',
+    newProjectPlaceholder: 'New route name',
+    templatePlaceholder: 'Template name',
+    createProject: 'Create',
+    createMode: 'Create mode',
+    createModeNew: 'Create new route',
+    createModeTemplate: 'Use template',
+    templateSource: 'Choose template',
+    noTemplates: 'No templates available',
+    preview: 'Preview',
+    templatePreview: 'Template preview',
+    previewCards: 'Preview cards',
+    noCardsInTemplate: 'No cards in this template',
+    saveTemplate: 'Save',
+    saveAsTemplate: 'Save as template',
+    switchProject: 'Open',
+    rename: 'Change name',
+    remove: 'Delete',
+    projectActions: 'Route actions',
+    templateActions: 'Template actions',
+    apply: 'Apply',
+    panelOpen: 'Open panel',
+    projectDeleted: 'Route deleted',
+    projectCreated: 'Route created',
+    projectRenamed: 'Route renamed',
+    templateSaved: 'Template saved',
+    templateApplied: 'Template applied',
+    templateDeleted: 'Template deleted',
+    templateRenamed: 'Template renamed',
+    cannotDeleteLastProject: 'At least 1 route is required',
+    confirmDeleteProject: (name) => `Delete route "${name}"?`,
+    confirmDeleteTemplate: (name) => `Delete template "${name}"?`,
+    projectNamePrompt: 'Route name',
+    templateNamePrompt: 'Template name',
     install: 'Install',
     import: 'Import',
     installRoGoAsApp: 'Install RoGo as an app',
@@ -191,6 +285,9 @@ const I18N = {
 };
 
 let deferredInstallPrompt = null;
+let openProjectMenuId = null;
+let openTemplateMenuId = null;
+let settingsSectionPinned = false;
 
 const installRow  = document.getElementById('installRow');
 const installBtn  = document.getElementById('installBtn');
@@ -329,9 +426,96 @@ function getCardLayout() {
   return raw === 'classic' ? 'classic' : 'compact';
 }
 
+function readProjects() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeProjects(projects) {
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+}
+
+function ensureProjectsSetup() {
+  let projects = readProjects();
+  if (!projects.length) {
+    projects = [{ id: 'default', name: 'Route 0', createdAt: Date.now() }];
+    writeProjects(projects);
+  } else {
+    const defaultProject = projects.find((p) => p?.id === 'default');
+    if (defaultProject && ['default', 'route 0'].includes(String(defaultProject.name || '').trim().toLowerCase())) {
+      defaultProject.name = 'Route 0';
+      writeProjects(projects);
+    }
+  }
+
+  let current = localStorage.getItem(CURRENT_PROJECT_KEY) || projects[0].id;
+  if (!projects.some(p => p.id === current)) {
+    current = projects[0].id;
+    localStorage.setItem(CURRENT_PROJECT_KEY, current);
+  }
+  setCurrentProject(current);
+  return { projects, current };
+}
+
+function projectOrderKey() {
+  return `${GROUP_ORDER_KEY}_${getCurrentProject()}`;
+}
+
+function readTemplates() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTemplates(templates) {
+  localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+}
+
+function refreshCreateTemplateOptions() {
+  if (!createProjectTemplateSelect) return;
+  const templates = readTemplates();
+  const current = createProjectTemplateSelect.value;
+  if (!templates.length) {
+    createProjectTemplateSelect.innerHTML = `<option value="">${escapeHtml(t('noTemplates'))}</option>`;
+    createProjectTemplateSelect.disabled = true;
+    if (createProjectBtn && createProjectMode === 'template') createProjectBtn.disabled = true;
+    return;
+  }
+
+  createProjectTemplateSelect.innerHTML = templates
+    .map((tpl) => `<option value="${escapeHtml(tpl.id)}">${escapeHtml(tpl.name)}</option>`)
+    .join('');
+
+  const keep = templates.some((tpl) => tpl.id === current);
+  createProjectTemplateSelect.value = keep ? current : templates[0].id;
+  createProjectTemplateSelect.disabled = false;
+  if (createProjectBtn && createProjectMode === 'template') createProjectBtn.disabled = false;
+}
+
+function renderCreateProjectModeControls() {
+  if (createProjectBtn) createProjectBtn.textContent = createProjectMode === 'template' ? t('createModeTemplate') : t('createProject');
+  if (createProjectModeBtn) {
+    createProjectModeBtn.setAttribute('aria-label', t('createMode'));
+    createProjectModeBtn.setAttribute('title', t('createMode'));
+  }
+  if (createModeNewBtn) createModeNewBtn.textContent = t('createModeNew');
+  if (createModeTemplateBtn) createModeTemplateBtn.textContent = t('createModeTemplate');
+  if (createProjectModeMenu) createProjectModeMenu.classList.toggle('open', createProjectModeMenuOpen);
+  if (createProjectTemplateRow) createProjectTemplateRow.classList.toggle('hidden', createProjectMode !== 'template');
+  if (createProjectTemplateSelect) createProjectTemplateSelect.setAttribute('aria-label', t('templateSource'));
+  refreshCreateTemplateOptions();
+}
+
 function getStoredGroupOrder() {
   try {
-    const raw = localStorage.getItem(GROUP_ORDER_KEY);
+    const raw = localStorage.getItem(projectOrderKey());
     const ids = JSON.parse(raw || '[]');
     return Array.isArray(ids) ? ids.map(Number).filter(Number.isFinite) : [];
   } catch {
@@ -348,7 +532,7 @@ function setAllTotalsCollapsed(v) {
 }
 
 function setStoredGroupOrder(ids) {
-  localStorage.setItem(GROUP_ORDER_KEY, JSON.stringify(ids.map(Number)));
+  localStorage.setItem(projectOrderKey(), JSON.stringify(ids.map(Number)));
 }
 
 function orderGroups(groups) {
@@ -1726,10 +1910,8 @@ window.visualViewport?.addEventListener('scroll', syncModalViewportVars);
 window.addEventListener('resize', syncModalViewportVars);
 syncModalViewportVars();
 
-/* Settings Modal */
-const settingsBtn = document.getElementById('settingsBtn');
-const settingsBackdrop = document.getElementById('settingsBackdrop');
-const closeSettings = document.getElementById('closeSettings');
+/* Settings */
+const panelBtn = document.getElementById('panelBtn');
 const themeToggle = document.getElementById('themeToggle');
 const handToggle = document.getElementById('handToggle');
 const langSelect = document.getElementById('langSelect');
@@ -1777,14 +1959,50 @@ const historyBackdrop = document.getElementById('historyBackdrop');
 const historyModalTitle = document.getElementById('historyModalTitle');
 const historyList = document.getElementById('historyList');
 const closeHistory = document.getElementById('closeHistory');
+const templatePreviewBackdrop = document.getElementById('templatePreviewBackdrop');
+const templatePreviewModalTitle = document.getElementById('templatePreviewModalTitle');
+const templatePreviewList = document.getElementById('templatePreviewList');
+const closeTemplatePreview = document.getElementById('closeTemplatePreview');
+const sidePanelBackdrop = document.getElementById('sidePanelBackdrop');
+const panelSearch = document.getElementById('panelSearch');
+const panelSettingsBtn = document.getElementById('panelSettingsBtn');
+const projectList = document.getElementById('projectList');
+const newProjectName = document.getElementById('newProjectName');
+const createProjectBtn = document.getElementById('createProjectBtn');
+const createProjectModeBtn = document.getElementById('createProjectModeBtn');
+const createProjectModeMenu = document.getElementById('createProjectModeMenu');
+const createModeNewBtn = document.getElementById('createModeNewBtn');
+const createModeTemplateBtn = document.getElementById('createModeTemplateBtn');
+const createProjectTemplateRow = document.getElementById('createProjectTemplateRow');
+const createProjectTemplateSelect = document.getElementById('createProjectTemplateSelect');
+const templateName = document.getElementById('templateName');
+const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+const templateList = document.getElementById('templateList');
 if (resetBtn) resetBtn.addEventListener('click', resetAppDataAndReload);
+
+let createProjectMode = 'new';
+let createProjectModeMenuOpen = false;
+
+function updatePanelSettingsButton() {
+  if (!panelSettingsBtn) return;
+  if (settingsSectionPinned) {
+    panelSettingsBtn.setAttribute('aria-label', t('close'));
+    panelSettingsBtn.setAttribute('title', t('close'));
+    panelSettingsBtn.innerHTML = PANEL_SETTINGS_CLOSE_ICON_SVG;
+    return;
+  }
+  panelSettingsBtn.setAttribute('aria-label', t('settings'));
+  panelSettingsBtn.setAttribute('title', t('settings'));
+  panelSettingsBtn.innerHTML = PANEL_SETTINGS_ICON_SVG;
+}
 
 function syncI18nUI() {
   document.documentElement.lang = getLang();
 
-  if (settingsBtn) {
-    settingsBtn.setAttribute('aria-label', t('settings'));
-    settingsBtn.setAttribute('title', t('settings'));
+  if (panelBtn) {
+    panelBtn.setAttribute('aria-label', t('panelOpen'));
+    panelBtn.setAttribute('title', t('panelOpen'));
+    panelBtn.innerHTML = PANEL_OPEN_ICON_SVG;
   }
   if (cmd) cmd.placeholder = t('cmdPlaceholder');
   const sendBtn = document.getElementById('send');
@@ -1827,7 +2045,6 @@ function syncI18nUI() {
   if (themeSub) themeSub.textContent = t('themeSub');
   if (handedTitle) handedTitle.textContent = t('handed');
   if (handedSub) handedSub.textContent = t('handedSub');
-  if (closeSettings) closeSettings.textContent = t('close');
   if (selCancel) selCancel.textContent = t('done');
   if (selCount) selCount.textContent = t('selectedCount', selectedGroupIds.size);
   if (selCopy) selCopy.textContent = t('copy');
@@ -1842,6 +2059,246 @@ function syncI18nUI() {
   if (saveReorder) saveReorder.textContent = t('done');
   if (historyModalTitle) historyModalTitle.textContent = t('history');
   if (closeHistory) closeHistory.textContent = t('close');
+  if (templatePreviewModalTitle) templatePreviewModalTitle.textContent = t('templatePreview');
+  if (closeTemplatePreview) closeTemplatePreview.textContent = t('close');
+  if (panelSearch) panelSearch.placeholder = t('search');
+  if (newProjectName) newProjectName.placeholder = t('newProjectPlaceholder');
+  if (templateName) templateName.placeholder = t('templatePlaceholder');
+  renderCreateProjectModeControls();
+  if (saveTemplateBtn) saveTemplateBtn.textContent = t('saveTemplate');
+  updatePanelSettingsButton();
+  const projectTitleEl = document.querySelector('[data-title="projects"] .sidepanel-title');
+  const templateTitleEl = document.querySelector('[data-title="templates"] .sidepanel-title');
+  if (projectTitleEl) projectTitleEl.textContent = t('projectsTitle');
+  if (templateTitleEl) templateTitleEl.textContent = t('templatesTitle');
+  if (!sidePanelBackdrop?.classList.contains('hidden')) {
+    renderProjectList();
+    renderTemplateList();
+    applyPanelSearchFilter();
+  }
+}
+
+function projectDbName(projectId) {
+  const id = String(projectId || 'default').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `logistics-db-${id}`;
+}
+
+async function switchProject(projectId) {
+  const projects = readProjects();
+  if (!projects.some(p => p.id === projectId)) return;
+  localStorage.setItem(CURRENT_PROJECT_KEY, projectId);
+  setCurrentProject(projectId);
+  selectedGroup = null;
+  selectedMode = null;
+  exitSelectionMode();
+  await load();
+}
+
+async function renderProjectList() {
+  if (!projectList) return;
+  const projects = readProjects();
+  const current = getCurrentProject();
+  const disableProjectDelete = projects.length <= 1;
+
+  if (openProjectMenuId && !projects.some((p) => p.id === openProjectMenuId)) {
+    openProjectMenuId = null;
+  }
+
+  projectList.innerHTML = projects.map((p) => `
+    <div class="panel-item panel-item-project ${p.id === current ? 'active' : ''}" data-name="${escapeHtml(p.name)}" data-keywords="${escapeHtml(`route ${p.name}`)}">
+      <button class="btn install-btn panel-open-project" data-id="${p.id}" type="button">${escapeHtml(p.name)}</button>
+      <button
+        class="btn install-btn panel-project-menu-toggle"
+        data-id="${p.id}"
+        type="button"
+        aria-label="${escapeHtml(t('projectActions'))}"
+        title="${escapeHtml(t('projectActions'))}"
+        aria-expanded="${openProjectMenuId === p.id ? 'true' : 'false'}"
+      >${PROJECT_MENU_ICON_SVG}</button>
+      <div class="panel-project-menu ${openProjectMenuId === p.id ? 'open' : ''}" data-id="${p.id}">
+        <button class="btn install-btn panel-save-project-template" data-id="${p.id}" type="button">${t('saveAsTemplate')}</button>
+        <button class="btn install-btn panel-rename-project" data-id="${p.id}" type="button">${t('rename')}</button>
+        <button class="btn danger-btn panel-delete-project" data-id="${p.id}" type="button" ${disableProjectDelete ? 'disabled aria-disabled="true"' : ''}>${t('remove')}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function captureProjectSnapshot(projectId) {
+  const targetId = String(projectId || 'default');
+  const activeId = getCurrentProject();
+  if (targetId !== activeId) setCurrentProject(targetId);
+  try {
+    return await exportProjectSnapshot();
+  } finally {
+    if (targetId !== activeId) setCurrentProject(activeId);
+  }
+}
+
+async function saveProjectAsTemplate(projectId, fallbackName = '', presetName = null) {
+  const hasPresetName = typeof presetName === 'string';
+  const proposedName = String(fallbackName || '').trim();
+  const rawName = hasPresetName ? presetName : prompt(t('templateNamePrompt'), proposedName);
+  if (rawName == null) return;
+  const name = String(rawName).trim();
+  if (!name) return;
+
+  const templates = readTemplates();
+  const snapshot = await captureProjectSnapshot(projectId);
+  const templateSnapshot = {
+    groups: (Array.isArray(snapshot?.groups) ? snapshot.groups : []).map((g) => ({
+      id: g?.id,
+      name: String(g?.name || ''),
+      createdAt: Number(g?.createdAt) || Date.now()
+    })),
+    // Keep template clean: only names/structure, totals start at zero.
+    events: []
+  };
+  const existingIdx = templates.findIndex((tpl) => String(tpl?.name || '').trim().toLowerCase() === name.toLowerCase());
+  const nextTemplate = {
+    id: existingIdx >= 0 ? templates[existingIdx].id : `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    createdAt: existingIdx >= 0 ? Number(templates[existingIdx].createdAt) || Date.now() : Date.now(),
+    updatedAt: Date.now(),
+    projectId: String(projectId || 'default'),
+    snapshot: templateSnapshot
+  };
+  const nextTemplates = templates.filter((tpl, i) => i !== existingIdx);
+  nextTemplates.unshift(nextTemplate);
+  writeTemplates(nextTemplates);
+  renderTemplateList();
+  applyPanelSearchFilter();
+  feedback.textContent = t('templateSaved');
+  clearFeedbackSoon(1000);
+}
+
+function renderTemplateList() {
+  if (!templateList) return;
+  const templates = readTemplates();
+
+  if (openTemplateMenuId && !templates.some((tpl) => tpl.id === openTemplateMenuId)) {
+    openTemplateMenuId = null;
+  }
+
+  templateList.innerHTML = templates.map((tpl) => `
+    <div class="panel-item panel-item-template" data-name="${escapeHtml(tpl.name)}" data-keywords="${escapeHtml(`template ${tpl.name}`)}">
+      <button class="btn install-btn panel-apply-template" data-id="${tpl.id}" type="button">${escapeHtml(tpl.name)}</button>
+      <button
+        class="btn install-btn panel-template-menu-toggle"
+        data-id="${tpl.id}"
+        type="button"
+        aria-label="${escapeHtml(t('templateActions'))}"
+        title="${escapeHtml(t('templateActions'))}"
+        aria-expanded="${openTemplateMenuId === tpl.id ? 'true' : 'false'}"
+      >${PROJECT_MENU_ICON_SVG}</button>
+      <div class="panel-project-menu ${openTemplateMenuId === tpl.id ? 'open' : ''}" data-id="${tpl.id}">
+        <button class="btn install-btn panel-apply-template" data-id="${tpl.id}" type="button">${t('apply')}</button>
+        <button class="btn install-btn panel-preview-template" data-id="${tpl.id}" type="button">${t('previewCards')}</button>
+        <button class="btn install-btn panel-rename-template" data-id="${tpl.id}" type="button">${t('rename')}</button>
+        <button class="btn danger-btn panel-delete-template" data-id="${tpl.id}" type="button">${t('remove')}</button>
+      </div>
+    </div>
+  `).join('');
+  refreshCreateTemplateOptions();
+}
+
+function panelSearchMatchesSettings(rawQuery) {
+  const q = String(rawQuery || '').trim().toLowerCase();
+  if (!q) return false;
+  const keywords = ['setting', 'settings', 'instelling', 'instellingen', 'tutorial', 'hint', 'hints', 'help'];
+  return keywords.some(k => q.includes(k));
+}
+
+function applyPanelSearchFilter() {
+  if (!sidePanelBackdrop || sidePanelBackdrop.classList.contains('hidden')) return;
+  const query = String(panelSearch?.value || '').trim().toLowerCase();
+  const sections = sidePanelBackdrop.querySelectorAll('.panel-section');
+
+  for (const section of sections) {
+    const isSettingsSection = section.getAttribute('data-title') === 'settings';
+    const titleEl = section.querySelector('.sidepanel-title');
+    const title = String(titleEl?.textContent || '').toLowerCase();
+    const titleMatch = !query || title.includes(query);
+    const items = section.querySelectorAll('.panel-item, .setting-row');
+    let visibleItems = 0;
+
+    for (const item of items) {
+      const name = String(item.getAttribute('data-name') || item.textContent || '').toLowerCase();
+      const keywords = String(item.getAttribute('data-keywords') || '').toLowerCase();
+      const hit = !query
+        ? (isSettingsSection ? settingsSectionPinned : true)
+        : (titleMatch || name.includes(query) || keywords.includes(query));
+      item.style.display = hit ? '' : 'none';
+      if (hit) visibleItems += 1;
+    }
+
+    let showSection = !query || titleMatch || visibleItems > 0;
+    if (isSettingsSection) {
+      showSection = settingsSectionPinned || (!!query && (visibleItems > 0 || panelSearchMatchesSettings(query)));
+    } else if (settingsSectionPinned) {
+      showSection = false;
+    }
+    section.style.display = showSection ? '' : 'none';
+  }
+
+  panelSettingsBtn?.classList.toggle(
+    'active',
+    settingsSectionPinned || panelSearchMatchesSettings(query)
+  );
+  updatePanelSettingsButton();
+}
+
+function openSidePanel() {
+  openProjectMenuId = null;
+  openTemplateMenuId = null;
+  createProjectModeMenuOpen = false;
+  settingsSectionPinned = false;
+  sidePanelBackdrop?.classList.remove('hidden');
+  renderProjectList();
+  renderTemplateList();
+  renderCreateProjectModeControls();
+  applyPanelSearchFilter();
+}
+
+function closeSidePanel() {
+  sidePanelBackdrop?.classList.add('hidden');
+  if (panelSearch) panelSearch.value = '';
+  panelSettingsBtn?.classList.remove('active');
+  openProjectMenuId = null;
+  openTemplateMenuId = null;
+  createProjectModeMenuOpen = false;
+  settingsSectionPinned = false;
+}
+
+function createProjectId() {
+  return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function suggestUniqueProjectName(baseName, existingProjects = []) {
+  const fallback = getLang() === 'nl' ? 'Nieuw project' : 'New project';
+  const base = String(baseName || '').trim() || fallback;
+  const used = new Set(existingProjects.map((p) => String(p?.name || '').trim().toLowerCase()).filter(Boolean));
+  if (!used.has(base.toLowerCase())) return base;
+  let n = 2;
+  let candidate = `${base} (${n})`;
+  while (used.has(candidate.toLowerCase())) {
+    n += 1;
+    candidate = `${base} (${n})`;
+  }
+  return candidate;
+}
+
+function deleteDatabaseByName(name) {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.deleteDatabase(name);
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
 }
 
 async function renderHistory({ groupId = null, title = null } = {}) {
@@ -1908,6 +2365,30 @@ function openHistoryModal() {
 
 function closeHistoryModal() {
   historyBackdrop?.classList.add('hidden');
+}
+
+function openTemplatePreviewModal() {
+  templatePreviewBackdrop?.classList.remove('hidden');
+}
+
+function closeTemplatePreviewModal() {
+  templatePreviewBackdrop?.classList.add('hidden');
+}
+
+function renderTemplatePreview(template) {
+  if (!templatePreviewList) return;
+  const groups = Array.isArray(template?.snapshot?.groups) ? template.snapshot.groups : [];
+  if (!groups.length) {
+    templatePreviewList.innerHTML = `<div class="history-empty">${escapeHtml(t('noCardsInTemplate'))}</div>`;
+    return;
+  }
+  const rows = groups
+    .map((g) => String(g?.name || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, getLang()))
+    .map((name) => `<div class="history-item"><div class="history-title">${escapeHtml(name)}</div></div>`)
+    .join('');
+  templatePreviewList.innerHTML = rows;
 }
 
 document.addEventListener('click', (e) => {
@@ -2054,8 +2535,10 @@ function renderReorderList() {
   });
 }
 
-function openReorderModal() {
+async function openReorderModal() {
   if (!reorderBackdrop) return;
+  const groups = await getGroupsWithTotals();
+  reorderInitialOrder = orderGroups(groups).map((g) => Number(g.id));
   renderReorderList();
   reorderBackdrop.classList.remove('hidden');
 }
@@ -2064,13 +2547,35 @@ function closeReorderModal() {
   reorderBackdrop?.classList.add('hidden');
 }
 
+async function confirmReorderModal() {
+  reorderInitialOrder = null;
+  closeReorderModal();
+  feedback.textContent = t('reordered');
+  clearFeedbackSoon(1000);
+  await load();
+}
+
+async function cancelReorderModal() {
+  if (Array.isArray(reorderInitialOrder)) {
+    setStoredGroupOrder(reorderInitialOrder);
+  }
+  reorderInitialOrder = null;
+  closeReorderModal();
+  await load();
+}
+
 reorderCardsBtn?.addEventListener('click', openReorderModal);
-cancelReorder?.addEventListener('click', closeReorderModal);
+cancelReorder?.addEventListener('click', async () => {
+  await cancelReorderModal();
+});
 reorderBackdrop?.addEventListener('click', (e) => {
-  if (e.target === reorderBackdrop) closeReorderModal();
+  if (e.target === reorderBackdrop) {
+    confirmReorderModal();
+  }
 });
 
 let reorderDragId = null;
+let reorderInitialOrder = null;
 reorderList?.addEventListener('dragstart', (e) => {
   const item = e.target.closest('.reorder-item');
   if (!item) return;
@@ -2114,10 +2619,7 @@ reorderList?.addEventListener('click', (e) => {
 });
 
 saveReorder?.addEventListener('click', async () => {
-  closeReorderModal();
-  feedback.textContent = t('reordered');
-  clearFeedbackSoon(1000);
-  await load();
+  await confirmReorderModal();
 });
 
 openGlobalHistoryBtn?.addEventListener('click', async () => {
@@ -2132,6 +2634,15 @@ historyBackdrop?.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (!historyBackdrop || historyBackdrop.classList.contains('hidden')) return;
   if (e.key === 'Escape') closeHistoryModal();
+});
+
+closeTemplatePreview?.addEventListener('click', closeTemplatePreviewModal);
+templatePreviewBackdrop?.addEventListener('click', (e) => {
+  if (e.target === templatePreviewBackdrop) closeTemplatePreviewModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (!templatePreviewBackdrop || templatePreviewBackdrop.classList.contains('hidden')) return;
+  if (e.key === 'Escape') closeTemplatePreviewModal();
 });
 
 async function resetAppDataAndReload() {
@@ -2207,23 +2718,353 @@ function applySettingsFromStorage() {
 }
 
 function openSettings() {
-  settingsBackdrop.classList.remove('hidden');
+  if (sidePanelBackdrop?.classList.contains('hidden')) {
+    openSidePanel();
+  }
+  if (settingsSectionPinned) {
+    settingsSectionPinned = false;
+    applyPanelSearchFilter();
+    try {
+      panelSearch?.focus({ preventScroll: true });
+    } catch {
+      panelSearch?.focus();
+    }
+    return;
+  }
+  if (panelSearch) panelSearch.value = '';
+  settingsSectionPinned = true;
+  const settingsSection = sidePanelBackdrop?.querySelector('[data-title="settings"]');
+  if (!settingsSection) return;
+  applyPanelSearchFilter();
+  settingsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  panelSettingsBtn?.classList.add('active');
+  try {
+    panelSearch?.focus({ preventScroll: true });
+  } catch {
+    panelSearch?.focus();
+  }
 }
 
-function closeSettingsModal() {
-  settingsBackdrop.classList.add('hidden');
-}
+panelBtn?.addEventListener('click', openSidePanel);
+sidePanelBackdrop?.addEventListener('click', (e) => {
+  if (e.target === sidePanelBackdrop) closeSidePanel();
+});
+document.addEventListener('click', (e) => {
+  if (createProjectModeMenuOpen && !e.target.closest('.sidepanel-create-wrap')) {
+    createProjectModeMenuOpen = false;
+    renderCreateProjectModeControls();
+  }
+  if (openProjectMenuId && !e.target.closest('.panel-item-project')) {
+    openProjectMenuId = null;
+    renderProjectList();
+    applyPanelSearchFilter();
+  }
+  if (openTemplateMenuId && !e.target.closest('.panel-item-template')) {
+    openTemplateMenuId = null;
+    renderTemplateList();
+    applyPanelSearchFilter();
+  }
+});
+createProjectModeBtn?.addEventListener('click', () => {
+  createProjectModeMenuOpen = !createProjectModeMenuOpen;
+  renderCreateProjectModeControls();
+});
+createModeNewBtn?.addEventListener('click', () => {
+  createProjectMode = 'new';
+  createProjectModeMenuOpen = false;
+  renderCreateProjectModeControls();
+});
+createModeTemplateBtn?.addEventListener('click', () => {
+  createProjectMode = 'template';
+  createProjectModeMenuOpen = false;
+  renderCreateProjectModeControls();
+});
+panelSearch?.addEventListener('input', applyPanelSearchFilter);
+panelSearch?.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (!panelSearchMatchesSettings(panelSearch.value)) return;
+  e.preventDefault();
+  openSettings();
+});
+panelSettingsBtn?.addEventListener('click', () => {
+  openSettings();
+});
 
-settingsBtn?.addEventListener('click', openSettings);
-closeSettings?.addEventListener('click', closeSettingsModal);
+createProjectBtn?.addEventListener('click', async () => {
+  const name = String(newProjectName?.value || '').trim();
+  if (!name) return;
+  const selectedTemplateId = String(createProjectTemplateSelect?.value || '');
+  const selectedTemplate = createProjectMode === 'template'
+    ? readTemplates().find((tpl) => tpl.id === selectedTemplateId)
+    : null;
+  if (createProjectMode === 'template' && !selectedTemplate) {
+    feedback.textContent = `⚠ ${t('noTemplates')}`;
+    clearFeedbackSoon(900);
+    return;
+  }
 
-settingsBackdrop?.addEventListener('click', (e) => {
-  if (e.target === settingsBackdrop) closeSettingsModal();
+  const projects = readProjects();
+  if (projects.some(p => String(p.name).toLowerCase() === name.toLowerCase())) {
+    feedback.textContent = `⚠ ${t('error')}`;
+    clearFeedbackSoon(900);
+    return;
+  }
+
+  const id = createProjectId();
+  projects.push({ id, name, createdAt: Date.now() });
+  writeProjects(projects);
+  if (newProjectName) newProjectName.value = '';
+  await switchProject(id);
+  if (selectedTemplate) {
+    await replaceProjectWithSnapshot(selectedTemplate.snapshot || { groups: [], events: [] });
+    selectedGroup = null;
+    selectedMode = null;
+    exitSelectionMode();
+    await load();
+  }
+  renderProjectList();
+  applyPanelSearchFilter();
+  feedback.textContent = selectedTemplate ? t('templateApplied') : t('projectCreated');
+  clearFeedbackSoon(1000);
+});
+
+newProjectName?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    createProjectBtn?.click();
+  }
+});
+
+projectList?.addEventListener('click', async (e) => {
+  const menuToggleBtn = e.target.closest('.panel-project-menu-toggle');
+  if (menuToggleBtn) {
+    const id = menuToggleBtn.getAttribute('data-id');
+    if (!id) return;
+    openTemplateMenuId = null;
+    openProjectMenuId = openProjectMenuId === id ? null : id;
+    renderProjectList();
+    renderTemplateList();
+    applyPanelSearchFilter();
+    return;
+  }
+
+  const openBtn = e.target.closest('.panel-open-project');
+  if (openBtn) {
+    const id = openBtn.getAttribute('data-id');
+    if (id) {
+      openProjectMenuId = null;
+      await switchProject(id);
+      renderProjectList();
+      applyPanelSearchFilter();
+    }
+    return;
+  }
+
+  const renameBtn = e.target.closest('.panel-rename-project');
+  if (renameBtn) {
+    const id = renameBtn.getAttribute('data-id');
+    if (!id) return;
+    openProjectMenuId = null;
+    const projects = readProjects();
+    const idx = projects.findIndex(p => p.id === id);
+    if (idx < 0) return;
+    const currentName = String(projects[idx].name || '');
+    const next = prompt(t('projectNamePrompt'), currentName);
+    if (next == null) return;
+    const name = String(next).trim();
+    if (!name || name === currentName) return;
+    if (projects.some((p, i) => i !== idx && String(p.name).toLowerCase() === name.toLowerCase())) {
+      feedback.textContent = `⚠ ${t('error')}`;
+      clearFeedbackSoon(900);
+      return;
+    }
+    projects[idx].name = name;
+    writeProjects(projects);
+    renderProjectList();
+    applyPanelSearchFilter();
+    feedback.textContent = t('projectRenamed');
+    clearFeedbackSoon(1000);
+    return;
+  }
+
+  const saveTemplateItemBtn = e.target.closest('.panel-save-project-template');
+  if (saveTemplateItemBtn) {
+    const id = saveTemplateItemBtn.getAttribute('data-id');
+    if (!id) return;
+    const projects = readProjects();
+    const project = projects.find((p) => p.id === id);
+    openProjectMenuId = null;
+    renderProjectList();
+    applyPanelSearchFilter();
+    await saveProjectAsTemplate(id, project?.name || '');
+    return;
+  }
+
+  const deleteBtn = e.target.closest('.panel-delete-project');
+  if (!deleteBtn) return;
+  const id = deleteBtn.getAttribute('data-id');
+  if (!id) return;
+  openProjectMenuId = null;
+
+  const projects = readProjects();
+  if (projects.length <= 1) {
+    feedback.textContent = `⚠ ${t('cannotDeleteLastProject')}`;
+    clearFeedbackSoon(1200);
+    return;
+  }
+
+  const project = projects.find(p => p.id === id);
+  if (!project) return;
+
+  const currentId = getCurrentProject();
+  const remaining = projects.filter(p => p.id !== id);
+  writeProjects(remaining);
+  localStorage.removeItem(`${GROUP_ORDER_KEY}_${id}`);
+  await deleteDatabaseByName(projectDbName(id));
+
+  if (currentId === id) {
+    const fallback = remaining[0]?.id;
+    if (fallback) {
+      localStorage.setItem(CURRENT_PROJECT_KEY, fallback);
+      setCurrentProject(fallback);
+      selectedGroup = null;
+      selectedMode = null;
+      exitSelectionMode();
+      await load();
+    }
+  }
+
+  renderProjectList();
+  applyPanelSearchFilter();
+
+  feedback.textContent = t('projectDeleted');
+  clearFeedbackSoon(1000);
+});
+
+saveTemplateBtn?.addEventListener('click', async () => {
+  const name = String(templateName?.value || '').trim();
+  if (!name) return;
+  await saveProjectAsTemplate(getCurrentProject(), '', name);
+  if (templateName) templateName.value = '';
+});
+
+templateName?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    saveTemplateBtn?.click();
+  }
+});
+
+templateList?.addEventListener('click', async (e) => {
+  const menuToggleBtn = e.target.closest('.panel-template-menu-toggle');
+  if (menuToggleBtn) {
+    const id = menuToggleBtn.getAttribute('data-id');
+    if (!id) return;
+    openProjectMenuId = null;
+    openTemplateMenuId = openTemplateMenuId === id ? null : id;
+    renderProjectList();
+    renderTemplateList();
+    applyPanelSearchFilter();
+    return;
+  }
+
+  const applyBtn = e.target.closest('.panel-apply-template');
+  if (applyBtn) {
+    const id = applyBtn.getAttribute('data-id');
+    const template = readTemplates().find(tpl => tpl.id === id);
+    if (!template) return;
+    openTemplateMenuId = null;
+    renderTemplateList();
+    applyPanelSearchFilter();
+    const projects = readProjects();
+    const suggested = suggestUniqueProjectName(template.name, projects);
+    const raw = prompt(t('projectNamePrompt'), suggested);
+    if (raw == null) return;
+    const chosen = String(raw).trim();
+    if (!chosen) return;
+    const uniqueName = suggestUniqueProjectName(chosen, projects);
+    const idNew = createProjectId();
+    projects.push({ id: idNew, name: uniqueName, createdAt: Date.now() });
+    writeProjects(projects);
+    await switchProject(idNew);
+    await replaceProjectWithSnapshot(template.snapshot || { groups: [], events: [] });
+    selectedGroup = null;
+    selectedMode = null;
+    exitSelectionMode();
+    await load();
+    renderProjectList();
+    renderTemplateList();
+    applyPanelSearchFilter();
+    feedback.textContent = t('templateApplied');
+    clearFeedbackSoon(1000);
+    return;
+  }
+
+  const previewBtn = e.target.closest('.panel-preview-template');
+  if (previewBtn) {
+    const id = previewBtn.getAttribute('data-id');
+    if (!id) return;
+    const template = readTemplates().find((tpl) => tpl.id === id);
+    if (!template) return;
+    openTemplateMenuId = null;
+    renderTemplateList();
+    applyPanelSearchFilter();
+    if (templatePreviewModalTitle) templatePreviewModalTitle.textContent = `${t('templatePreview')} · ${template.name}`;
+    renderTemplatePreview(template);
+    openTemplatePreviewModal();
+    return;
+  }
+
+  const renameBtn = e.target.closest('.panel-rename-template');
+  if (renameBtn) {
+    const id = renameBtn.getAttribute('data-id');
+    if (!id) return;
+    openTemplateMenuId = null;
+    renderTemplateList();
+    applyPanelSearchFilter();
+    const templates = readTemplates();
+    const idx = templates.findIndex((tpl) => tpl.id === id);
+    if (idx < 0) return;
+    const currentName = String(templates[idx].name || '');
+    const next = prompt(t('templateNamePrompt'), currentName);
+    if (next == null) return;
+    const name = String(next).trim();
+    if (!name || name === currentName) return;
+    if (templates.some((tpl, i) => i !== idx && String(tpl.name).toLowerCase() === name.toLowerCase())) {
+      feedback.textContent = `⚠ ${t('error')}`;
+      clearFeedbackSoon(900);
+      return;
+    }
+    templates[idx].name = name;
+    writeTemplates(templates);
+    renderTemplateList();
+    applyPanelSearchFilter();
+    feedback.textContent = t('templateRenamed');
+    clearFeedbackSoon(1000);
+    return;
+  }
+
+  const deleteBtn = e.target.closest('.panel-delete-template');
+  if (!deleteBtn) return;
+  openTemplateMenuId = null;
+  renderTemplateList();
+  applyPanelSearchFilter();
+  const id = deleteBtn.getAttribute('data-id');
+  const templates = readTemplates();
+  const target = templates.find(tpl => tpl.id === id);
+  if (!target) return;
+  if (!confirm(t('confirmDeleteTemplate', target.name))) return;
+  writeTemplates(templates.filter(tpl => tpl.id !== id));
+  renderTemplateList();
+  applyPanelSearchFilter();
+  feedback.textContent = t('templateDeleted');
+  clearFeedbackSoon(1000);
 });
 
 document.addEventListener('keydown', (e) => {
-  if (!settingsBackdrop || settingsBackdrop.classList.contains('hidden')) return;
-  if (e.key === 'Escape') closeSettingsModal();
+  if (!sidePanelBackdrop?.classList.contains('hidden') && e.key === 'Escape') {
+    closeSidePanel();
+  }
 });
 
 themeToggle?.addEventListener('change', () => {
@@ -2251,4 +3092,5 @@ cardLayoutSelect?.addEventListener('change', () => {
 });
 
 // call once on boot
+ensureProjectsSetup();
 applySettingsFromStorage();

@@ -1,12 +1,32 @@
 import { TOKEN_ORDER } from './tokens.js';
 
 let db;
+let currentProjectId = 'default';
+
+function dbName() {
+  const id = String(currentProjectId || 'default').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `logistics-db-${id}`;
+}
+
+export function setCurrentProject(projectId) {
+  const next = String(projectId || 'default');
+  if (next === currentProjectId) return;
+  currentProjectId = next;
+  if (db) {
+    try { db.close(); } catch {}
+    db = null;
+  }
+}
+
+export function getCurrentProject() {
+  return currentProjectId;
+}
 
 export async function openDB() {
   if (db) return db;
 
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('logistics-db', 1);
+    const req = indexedDB.open(dbName(), 1);
 
     req.onupgradeneeded = e => {
       db = e.target.result;
@@ -162,4 +182,36 @@ export async function getHistoryEvents({ groupId = null, limit = 500 } = {}) {
 
   filtered.sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
   return filtered.slice(0, Math.max(1, Number(limit) || 500));
+}
+
+export async function exportProjectSnapshot() {
+  await openDB();
+  const groups = await req(store('groups').getAll());
+  const events = await req(store('events').getAll());
+  return {
+    groups: groups.map(g => ({ ...g })),
+    events: events.map(e => ({ ...e }))
+  };
+}
+
+export async function replaceProjectWithSnapshot(snapshot) {
+  await openDB();
+  const safe = snapshot || {};
+  const groups = Array.isArray(safe.groups) ? safe.groups : [];
+  const events = Array.isArray(safe.events) ? safe.events : [];
+
+  const tx = db.transaction(['groups', 'events'], 'readwrite');
+  const groupsOS = tx.objectStore('groups');
+  const eventsOS = tx.objectStore('events');
+  groupsOS.clear();
+  eventsOS.clear();
+
+  for (const g of groups) groupsOS.put({ ...g });
+  for (const e of events) eventsOS.put({ ...e });
+
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
 }
