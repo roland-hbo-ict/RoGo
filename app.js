@@ -2824,7 +2824,9 @@ createProjectBtn?.addEventListener('click', async () => {
 });
 
 newProjectName?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
+  const k = String(e.key || '').toLowerCase();
+  const isSubmitKey = k === 'enter' || k === 'go' || k === 'done' || k === 'next' || e.keyCode === 13;
+  if (isSubmitKey) {
     e.preventDefault();
     createProjectBtn?.click();
   }
