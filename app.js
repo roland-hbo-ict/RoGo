@@ -1859,7 +1859,10 @@ function parsePart(p) {
 }
 
 function syncVisualViewport() {
-  if (!window.visualViewport) return;
+  if (!window.visualViewport) {
+    document.documentElement.style.setProperty('--vv-bottom', '0px');
+    return;
+  }
   const vv = window.visualViewport;
 
   // IMPORTANT:
@@ -1871,12 +1874,12 @@ function syncVisualViewport() {
     return;
   }
 
-  // Only compensate when it looks like a keyboard / UI inset (not normal scroll)
-  const raw = window.innerHeight - (vv.height + vv.offsetTop);
+  // Use a stable delta that doesn't jump when top browser chrome animates.
+  const raw = window.innerHeight - vv.height;
   const bottom = raw > 0 ? raw : 0;
 
-  // Optional: ignore tiny changes (reduces micro-jitter)
-  const snapped = bottom < 2 ? 0 : Math.round(bottom);
+  // Ignore small UI/chrome fluctuations; keep only meaningful inset changes.
+  const snapped = bottom < 24 ? 0 : Math.round(bottom);
 
   document.documentElement.style.setProperty('--vv-bottom', `${snapped}px`);
 }
@@ -1884,6 +1887,7 @@ function syncVisualViewport() {
 window.visualViewport?.addEventListener('resize', syncVisualViewport);
 window.visualViewport?.addEventListener('scroll', syncVisualViewport);
 window.addEventListener('resize', syncVisualViewport);
+window.addEventListener('orientationchange', syncVisualViewport);
 syncVisualViewport();
 
 function syncModalViewportVars() {
