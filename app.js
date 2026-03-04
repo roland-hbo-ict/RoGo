@@ -2718,17 +2718,13 @@ function applySettingsFromStorage() {
 }
 
 function openSettings() {
+  panelSearch?.blur();
   if (sidePanelBackdrop?.classList.contains('hidden')) {
     openSidePanel();
   }
   if (settingsSectionPinned) {
     settingsSectionPinned = false;
     applyPanelSearchFilter();
-    try {
-      panelSearch?.focus({ preventScroll: true });
-    } catch {
-      panelSearch?.focus();
-    }
     return;
   }
   if (panelSearch) panelSearch.value = '';
@@ -2738,11 +2734,6 @@ function openSettings() {
   applyPanelSearchFilter();
   settingsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   panelSettingsBtn?.classList.add('active');
-  try {
-    panelSearch?.focus({ preventScroll: true });
-  } catch {
-    panelSearch?.focus();
-  }
 }
 
 panelBtn?.addEventListener('click', openSidePanel);
