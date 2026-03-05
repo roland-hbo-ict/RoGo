@@ -62,6 +62,28 @@ const I18N = {
     cancel: 'Annuleren',
     create: 'Aanmaken',
     settings: 'Instellingen',
+    currentRoute: 'Huidige route',
+    exportRoute: 'Exporteer klanten',
+    exportRouteSub: 'Kopieer alle klanten van deze route',
+    duplicateRoute: 'Dupliceer route',
+    duplicateRouteSub: 'Maak een kopie van deze route',
+    clearTotals: 'Totalen wissen',
+    clearTotalsSub: 'Behoud klanten, reset geleverd/retour totalen',
+    routeActions: 'Acties',
+    routeActionsSub: 'Meer acties voor deze route',
+    actionsMenu: 'Acties menu',
+    clearTotalsBtn: 'Route totalen wissen',
+    viewHistoryBtn: 'Historie bekijken',
+    editNameBtn: 'Route hernoemen',
+    saveAsTemplateBtn: 'Opslaan als template',
+    clear: 'Wissen',
+    confirmClearTotals: 'Totalen van deze route wissen?\n\nKlanten blijven bestaan, alleen totalen worden teruggezet naar 0.',
+    routeTotalsCleared: 'Route totalen gewist',
+    noCustomersInRoute: 'Geen klanten in deze route',
+    viewHistoryRouteSub: 'Open historie voor deze route',
+    editName: 'Naam wijzigen',
+    editNameSub: 'Hernoem deze route',
+    saveAsTemplateSub: 'Maak template van deze route',
     projects: 'Routes',
     templates: 'Templates',
     projectsTitle: 'Routes',
@@ -75,7 +97,6 @@ const I18N = {
     createModeTemplate: 'Gebruik template',
     templateSource: 'Kies template',
     noTemplates: 'Geen templates beschikbaar',
-    preview: 'Preview',
     templatePreview: 'Template preview',
     previewCards: 'Bekijk kaarten',
     noCardsInTemplate: 'Geen kaarten in deze template',
@@ -85,6 +106,7 @@ const I18N = {
     rename: 'Naam wijzigen',
     remove: 'Verwijderen',
     projectActions: 'Route acties',
+    viewHistory: 'Bekijk historie',
     templateActions: 'Template acties',
     apply: 'Gebruik',
     panelOpen: 'Open zijpaneel',
@@ -119,8 +141,6 @@ const I18N = {
     allTotals: 'Alle totalen',
     total: 'Totaal',
     name: 'Naam',
-    globalHistorySub: 'Alle klantgebeurtenissen',
-    open: 'Openen',
     noHistory: 'Geen historie gevonden',
     created: 'Aangemaakt',
     deleted: 'Verwijderd',
@@ -178,6 +198,28 @@ const I18N = {
     cancel: 'Cancel',
     create: 'Create',
     settings: 'Settings',
+    currentRoute: 'Current route',
+    exportRoute: 'Export customers',
+    exportRouteSub: 'Copy all customers from this route',
+    duplicateRoute: 'Duplicate route',
+    duplicateRouteSub: 'Create a copy of this route',
+    clearTotals: 'Clear totals',
+    clearTotalsSub: 'Keep customers, reset delivered/return totals',
+    routeActions: 'Actions',
+    routeActionsSub: 'More actions for this route',
+    actionsMenu: 'Actions menu',
+    clearTotalsBtn: 'Clear route totals',
+    viewHistoryBtn: 'View history',
+    editNameBtn: 'Rename route',
+    saveAsTemplateBtn: 'Save as template',
+    clear: 'Clear',
+    confirmClearTotals: 'Clear totals for this route?\n\nCustomers remain, only totals are reset to 0.',
+    routeTotalsCleared: 'Route totals cleared',
+    noCustomersInRoute: 'No customers in this route',
+    viewHistoryRouteSub: 'Open history for this route',
+    editName: 'Edit name',
+    editNameSub: 'Rename this route',
+    saveAsTemplateSub: 'Create template from this route',
     projects: 'Routes',
     templates: 'Templates',
     projectsTitle: 'Routes',
@@ -191,7 +233,6 @@ const I18N = {
     createModeTemplate: 'Use template',
     templateSource: 'Choose template',
     noTemplates: 'No templates available',
-    preview: 'Preview',
     templatePreview: 'Template preview',
     previewCards: 'Preview cards',
     noCardsInTemplate: 'No cards in this template',
@@ -201,6 +242,7 @@ const I18N = {
     rename: 'Change name',
     remove: 'Delete',
     projectActions: 'Route actions',
+    viewHistory: 'View history',
     templateActions: 'Template actions',
     apply: 'Apply',
     panelOpen: 'Open panel',
@@ -235,8 +277,6 @@ const I18N = {
     allTotals: 'All totals',
     total: 'Total',
     name: 'Name',
-    globalHistorySub: 'All customer events',
-    open: 'Open',
     noHistory: 'No history found',
     created: 'Created',
     deleted: 'Deleted',
@@ -513,6 +553,26 @@ function renderCreateProjectModeControls() {
   refreshCreateTemplateOptions();
 }
 
+function renderRouteActionsMenu() {
+  if (routeActionsTitle) routeActionsTitle.textContent = t('routeActions');
+  if (routeActionsSub) routeActionsSub.textContent = t('routeActionsSub');
+  if (routeActionsMenuBtn) {
+    const hasQuery = String(panelSearch?.value || '').trim().length > 0;
+    const suffix = hasQuery && routeActionsSearchHits > 0 ? ` (${routeActionsSearchHits})` : '';
+    routeActionsMenuBtn.textContent = `${t('routeActions')}${suffix}`;
+  }
+  if (routeActionsModeBtn) {
+    routeActionsModeBtn.setAttribute('aria-label', t('actionsMenu'));
+    routeActionsModeBtn.setAttribute('title', t('actionsMenu'));
+  }
+  if (routeActionsMenu) routeActionsMenu.classList.toggle('open', routeActionsMenuOpen);
+}
+
+function getCurrentRouteRecord() {
+  const currentId = getCurrentProject();
+  return readProjects().find((p) => p.id === currentId) || null;
+}
+
 function getStoredGroupOrder() {
   try {
     const raw = localStorage.getItem(projectOrderKey());
@@ -617,18 +677,14 @@ async function buildSelectedCardsText() {
   const cards = [];
 
   for (const g of chosen) {
-    const geleverdLines = [];
-    const retourLines = [];
-
-    for (const k of TOKEN_ORDER) {
-      const gv = Number(g.geleverd?.[k] || 0);
-      const rv = Number(g.retour?.[k] || 0);
-      if (gv === 0 && rv === 0) continue;
-      const fullName = tokenNameNL(defs, k);
-      const ref = displayKey(defs, k);
-      geleverdLines.push(`${fullName} ${gv} ${ref}`);
-      retourLines.push(`${fullName} ${rv} ${ref}`);
-    }
+    const geleverdLines = TOKEN_ORDER
+      .map((k) => ({ name: tokenNameNL(defs, k), v: Number(g.geleverd?.[k] || 0), ref: displayKey(defs, k) }))
+      .filter((x) => x.v !== 0)
+      .map((x) => `${x.name} ${x.v} ${x.ref}`);
+    const retourLines = TOKEN_ORDER
+      .map((k) => ({ name: tokenNameNL(defs, k), v: Number(g.retour?.[k] || 0), ref: displayKey(defs, k) }))
+      .filter((x) => x.v !== 0)
+      .map((x) => `${x.name} ${x.v} ${x.ref}`);
 
     cards.push(
       `${g.name} - ${t('delivered')}:\n${geleverdLines.join('\n') || '-'}\n\n${t('returned')}:\n${retourLines.join('\n') || '-'}`
@@ -636,6 +692,32 @@ async function buildSelectedCardsText() {
   }
 
   return cards.join('\n\n___\n\n');
+}
+
+async function buildCurrentRouteCardsText() {
+  const all = orderGroups(await getGroupsWithTotals());
+  const defs = getTokenDefs();
+  const cards = [];
+
+  for (const g of all) {
+    const geleverdLines = TOKEN_ORDER
+      .map((k) => ({ name: tokenNameNL(defs, k), v: Number(g.geleverd?.[k] || 0), ref: displayKey(defs, k) }))
+      .filter((x) => x.v !== 0)
+      .map((x) => `${x.name} ${x.v} ${x.ref}`);
+    const retourLines = TOKEN_ORDER
+      .map((k) => ({ name: tokenNameNL(defs, k), v: Number(g.retour?.[k] || 0), ref: displayKey(defs, k) }))
+      .filter((x) => x.v !== 0)
+      .map((x) => `${x.name} ${x.v} ${x.ref}`);
+
+    cards.push(
+      `${g.name} - ${t('delivered')}:\n${geleverdLines.join('\n') || '-'}\n\n${t('returned')}:\n${retourLines.join('\n') || '-'}`
+    );
+  }
+
+  return {
+    text: cards.join('\n\n___\n\n'),
+    count: all.length
+  };
 }
 
 function normalizeTextKey(s) {
@@ -655,14 +737,24 @@ function parseImportSection(sectionText, defs, aliasMap) {
     .filter(l => l !== '-');
 
   for (const line of lines) {
-    const m = line.match(/^(.*\S)\s+(-?\d+)\s+([a-zA-Z_]+)$/);
-    if (!m) continue;
+    let fullName = '';
+    let qty = 0;
+    let ref = '';
 
-    const fullName = normalizeTextKey(m[1]);
-    const qty = Number(m[2]);
-    const ref = String(m[3] || '').toLowerCase();
+    const full = line.match(/^(.*\S)\s+(-?\d+)\s+([a-zA-Z_]+)$/);
+    if (full) {
+      fullName = normalizeTextKey(full[1]);
+      qty = Number(full[2]);
+      ref = String(full[3] || '').toLowerCase();
+    } else {
+      // Backward/alternate format: "<qty> <ref>"
+      const compact = line.match(/^(-?\d+)\s+([a-zA-Z_]+)$/);
+      if (!compact) continue;
+      qty = Number(compact[1]);
+      ref = String(compact[2] || '').toLowerCase();
+    }
 
-    let id = byName.get(fullName);
+    let id = fullName ? byName.get(fullName) : undefined;
     if (!id && aliasMap[ref]) id = aliasMap[ref];
     if (!id) continue;
 
@@ -1956,9 +2048,6 @@ const reorderModalTitle = document.getElementById('reorderModalTitle');
 const reorderList = document.getElementById('reorderList');
 const cancelReorder = document.getElementById('cancelReorder');
 const saveReorder = document.getElementById('saveReorder');
-const historyGlobalTitle = document.getElementById('historyGlobalTitle');
-const historyGlobalSub = document.getElementById('historyGlobalSub');
-const openGlobalHistoryBtn = document.getElementById('openGlobalHistoryBtn');
 const historyBackdrop = document.getElementById('historyBackdrop');
 const historyModalTitle = document.getElementById('historyModalTitle');
 const historyList = document.getElementById('historyList');
@@ -1973,6 +2062,25 @@ const panelSettingsBtn = document.getElementById('panelSettingsBtn');
 const projectList = document.getElementById('projectList');
 const newProjectName = document.getElementById('newProjectName');
 const createProjectBtn = document.getElementById('createProjectBtn');
+const routeActionsTitle = document.getElementById('routeActionsTitle');
+const routeActionsSub = document.getElementById('routeActionsSub');
+const routeActionsMenuBtn = document.getElementById('routeActionsMenuBtn');
+const routeActionsModeBtn = document.getElementById('routeActionsModeBtn');
+const routeActionsMenu = document.getElementById('routeActionsMenu');
+const exportRouteBtn = document.getElementById('exportRouteBtn');
+const duplicateRouteBtn = document.getElementById('duplicateRouteBtn');
+const clearTotalsBtn = document.getElementById('clearTotalsBtn');
+const currentRouteHistoryTitle = document.getElementById('currentRouteHistoryTitle');
+const currentRouteHistorySub = document.getElementById('currentRouteHistorySub');
+const currentRouteHistoryBtn = document.getElementById('currentRouteHistoryBtn');
+const currentRouteRenameTitle = document.getElementById('currentRouteRenameTitle');
+const currentRouteRenameSub = document.getElementById('currentRouteRenameSub');
+const currentRouteRenameBtn = document.getElementById('currentRouteRenameBtn');
+const currentRouteRenameBtnSearch = document.getElementById('currentRouteRenameBtnSearch');
+const currentRouteTemplateTitle = document.getElementById('currentRouteTemplateTitle');
+const currentRouteTemplateSub = document.getElementById('currentRouteTemplateSub');
+const currentRouteTemplateBtn = document.getElementById('currentRouteTemplateBtn');
+const currentRouteTemplateBtnSearch = document.getElementById('currentRouteTemplateBtnSearch');
 const createProjectModeBtn = document.getElementById('createProjectModeBtn');
 const createProjectModeMenu = document.getElementById('createProjectModeMenu');
 const createModeNewBtn = document.getElementById('createModeNewBtn');
@@ -1986,6 +2094,8 @@ if (resetBtn) resetBtn.addEventListener('click', resetAppDataAndReload);
 
 let createProjectMode = 'new';
 let createProjectModeMenuOpen = false;
+let routeActionsMenuOpen = false;
+let routeActionsSearchHits = 0;
 
 function updatePanelSettingsButton() {
   if (!panelSettingsBtn) return;
@@ -2030,15 +2140,27 @@ function syncI18nUI() {
   if (resetTitle) resetTitle.textContent = t('resetApp');
   if (resetSub) resetSub.textContent = t('resetAppSub');
   if (resetBtn) resetBtn.textContent = t('resetApp');
+  renderRouteActionsMenu();
+  if (exportRouteBtn) exportRouteBtn.textContent = t('exportRoute');
+  if (duplicateRouteBtn) duplicateRouteBtn.textContent = t('duplicateRoute');
+  if (clearTotalsBtn) clearTotalsBtn.textContent = t('clearTotalsBtn');
   if (importTitle) importTitle.textContent = t('importCards');
   if (importSub) importSub.textContent = t('importCardsSub');
-  if (importCardsBtn) importCardsBtn.textContent = t('import');
+  if (importCardsBtn) importCardsBtn.textContent = t('importCards');
   if (reorderTitle) reorderTitle.textContent = t('reorderCards');
   if (reorderSub) reorderSub.textContent = t('reorderCardsSub');
   if (reorderCardsBtn) reorderCardsBtn.textContent = t('reorder');
-  if (historyGlobalTitle) historyGlobalTitle.textContent = t('globalHistory');
-  if (historyGlobalSub) historyGlobalSub.textContent = t('globalHistorySub');
-  if (openGlobalHistoryBtn) openGlobalHistoryBtn.textContent = t('open');
+  if (currentRouteHistoryTitle) currentRouteHistoryTitle.textContent = t('viewHistory');
+  if (currentRouteHistorySub) currentRouteHistorySub.textContent = t('viewHistoryRouteSub');
+  if (currentRouteHistoryBtn) currentRouteHistoryBtn.textContent = t('viewHistoryBtn');
+  if (currentRouteRenameTitle) currentRouteRenameTitle.textContent = t('editName');
+  if (currentRouteRenameSub) currentRouteRenameSub.textContent = t('editNameSub');
+  if (currentRouteRenameBtn) currentRouteRenameBtn.textContent = t('editNameBtn');
+  if (currentRouteRenameBtnSearch) currentRouteRenameBtnSearch.textContent = t('editNameBtn');
+  if (currentRouteTemplateTitle) currentRouteTemplateTitle.textContent = t('saveAsTemplate');
+  if (currentRouteTemplateSub) currentRouteTemplateSub.textContent = t('saveAsTemplateSub');
+  if (currentRouteTemplateBtn) currentRouteTemplateBtn.textContent = t('saveAsTemplateBtn');
+  if (currentRouteTemplateBtnSearch) currentRouteTemplateBtnSearch.textContent = t('saveAsTemplateBtn');
   if (languageTitle) languageTitle.textContent = t('language');
   if (languageSub) languageSub.textContent = t('languageSub');
   if (cardLayoutTitle) cardLayoutTitle.textContent = t('cardLayout');
@@ -2071,8 +2193,10 @@ function syncI18nUI() {
   renderCreateProjectModeControls();
   if (saveTemplateBtn) saveTemplateBtn.textContent = t('saveTemplate');
   updatePanelSettingsButton();
+  const currentRouteTitleEl = document.querySelector('[data-title="currentRoute"] .sidepanel-title');
   const projectTitleEl = document.querySelector('[data-title="projects"] .sidepanel-title');
   const templateTitleEl = document.querySelector('[data-title="templates"] .sidepanel-title');
+  if (currentRouteTitleEl) currentRouteTitleEl.textContent = t('currentRoute');
   if (projectTitleEl) projectTitleEl.textContent = t('projectsTitle');
   if (templateTitleEl) templateTitleEl.textContent = t('templatesTitle');
   if (!sidePanelBackdrop?.classList.contains('hidden')) {
@@ -2121,6 +2245,7 @@ async function renderProjectList() {
       >${PROJECT_MENU_ICON_SVG}</button>
       <div class="panel-project-menu ${openProjectMenuId === p.id ? 'open' : ''}" data-id="${p.id}">
         <button class="btn install-btn panel-save-project-template" data-id="${p.id}" type="button">${t('saveAsTemplate')}</button>
+        <button class="btn install-btn panel-view-project-history" data-id="${p.id}" type="button">${t('viewHistory')}</button>
         <button class="btn install-btn panel-rename-project" data-id="${p.id}" type="button">${t('rename')}</button>
         <button class="btn danger-btn panel-delete-project" data-id="${p.id}" type="button" ${disableProjectDelete ? 'disabled aria-disabled="true"' : ''}>${t('remove')}</button>
       </div>
@@ -2217,9 +2342,11 @@ function applyPanelSearchFilter() {
   if (!sidePanelBackdrop || sidePanelBackdrop.classList.contains('hidden')) return;
   const query = String(panelSearch?.value || '').trim().toLowerCase();
   const sections = sidePanelBackdrop.querySelectorAll('.panel-section');
+  routeActionsSearchHits = 0;
 
   for (const section of sections) {
     const isSettingsSection = section.getAttribute('data-title') === 'settings';
+    const isCurrentRouteSection = section.getAttribute('data-title') === 'currentRoute';
     const titleEl = section.querySelector('.sidepanel-title');
     const title = String(titleEl?.textContent || '').toLowerCase();
     const titleMatch = !query || title.includes(query);
@@ -2229,11 +2356,17 @@ function applyPanelSearchFilter() {
     for (const item of items) {
       const name = String(item.getAttribute('data-name') || item.textContent || '').toLowerCase();
       const keywords = String(item.getAttribute('data-keywords') || '').toLowerCase();
+      const isSearchOnlyAction = item.classList.contains('search-only-action');
       const hit = !query
-        ? (isSettingsSection ? settingsSectionPinned : true)
-        : (titleMatch || name.includes(query) || keywords.includes(query));
+        ? (isSettingsSection ? settingsSectionPinned : !isSearchOnlyAction)
+        : (
+          isSearchOnlyAction
+            ? (name.includes(query) || keywords.includes(query))
+            : (titleMatch || name.includes(query) || keywords.includes(query))
+        );
       item.style.display = hit ? '' : 'none';
       if (hit) visibleItems += 1;
+      if (isCurrentRouteSection && isSearchOnlyAction && query && hit) routeActionsSearchHits += 1;
     }
 
     let showSection = !query || titleMatch || visibleItems > 0;
@@ -2250,12 +2383,14 @@ function applyPanelSearchFilter() {
     settingsSectionPinned || panelSearchMatchesSettings(query)
   );
   updatePanelSettingsButton();
+  renderRouteActionsMenu();
 }
 
 function openSidePanel() {
   openProjectMenuId = null;
   openTemplateMenuId = null;
   createProjectModeMenuOpen = false;
+  routeActionsMenuOpen = false;
   settingsSectionPinned = false;
   sidePanelBackdrop?.classList.remove('hidden');
   renderProjectList();
@@ -2271,6 +2406,7 @@ function closeSidePanel() {
   openProjectMenuId = null;
   openTemplateMenuId = null;
   createProjectModeMenuOpen = false;
+  routeActionsMenuOpen = false;
   settingsSectionPinned = false;
 }
 
@@ -2361,6 +2497,18 @@ async function renderHistory({ groupId = null, title = null } = {}) {
   historyList.innerHTML = html;
   refreshHistoryTimestampLabels(historyList);
   scheduleHistoryRefresh();
+}
+
+async function renderHistoryForProject(projectId, title = null) {
+  const targetId = String(projectId || '');
+  if (!targetId) return;
+  const activeId = getCurrentProject();
+  if (targetId !== activeId) setCurrentProject(targetId);
+  try {
+    await renderHistory({ title });
+  } finally {
+    if (targetId !== activeId) setCurrentProject(activeId);
+  }
 }
 
 function openHistoryModal() {
@@ -2626,11 +2774,6 @@ saveReorder?.addEventListener('click', async () => {
   await confirmReorderModal();
 });
 
-openGlobalHistoryBtn?.addEventListener('click', async () => {
-  openHistoryModal();
-  await renderHistory({ title: t('globalHistory') });
-});
-
 closeHistory?.addEventListener('click', closeHistoryModal);
 historyBackdrop?.addEventListener('click', (e) => {
   if (e.target === historyBackdrop) closeHistoryModal();
@@ -2745,6 +2888,10 @@ sidePanelBackdrop?.addEventListener('click', (e) => {
   if (e.target === sidePanelBackdrop) closeSidePanel();
 });
 document.addEventListener('click', (e) => {
+  if (routeActionsMenuOpen && !e.target.closest('.sidepanel-route-actions-wrap')) {
+    routeActionsMenuOpen = false;
+    renderRouteActionsMenu();
+  }
   if (createProjectModeMenuOpen && !e.target.closest('.sidepanel-create-wrap')) {
     createProjectModeMenuOpen = false;
     renderCreateProjectModeControls();
@@ -2759,6 +2906,14 @@ document.addEventListener('click', (e) => {
     renderTemplateList();
     applyPanelSearchFilter();
   }
+});
+routeActionsMenuBtn?.addEventListener('click', () => {
+  routeActionsMenuOpen = !routeActionsMenuOpen;
+  renderRouteActionsMenu();
+});
+routeActionsModeBtn?.addEventListener('click', () => {
+  routeActionsMenuOpen = !routeActionsMenuOpen;
+  renderRouteActionsMenu();
 });
 createProjectModeBtn?.addEventListener('click', () => {
   createProjectModeMenuOpen = !createProjectModeMenuOpen;
@@ -2783,6 +2938,126 @@ panelSearch?.addEventListener('keydown', (e) => {
 });
 panelSettingsBtn?.addEventListener('click', () => {
   openSettings();
+});
+
+exportRouteBtn?.addEventListener('click', async () => {
+  routeActionsMenuOpen = false;
+  renderRouteActionsMenu();
+  const payload = await buildCurrentRouteCardsText();
+  if (!payload.text) {
+    feedback.textContent = `⚠ ${t('noCustomersInRoute')}`;
+    clearFeedbackSoon(1000);
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(payload.text);
+      feedback.textContent = t('copiedCards', payload.count);
+      clearFeedbackSoon(1000);
+    }
+  } catch (e) {
+    feedback.textContent = '⚠ ' + (e?.message || t('error'));
+  }
+});
+
+duplicateRouteBtn?.addEventListener('click', async () => {
+  routeActionsMenuOpen = false;
+  renderRouteActionsMenu();
+  const projects = readProjects();
+  const currentRoute = getCurrentRouteRecord();
+  if (!currentRoute) return;
+  const suggested = suggestUniqueProjectName(currentRoute.name, projects);
+  const raw = prompt(t('projectNamePrompt'), suggested);
+  if (raw == null) return;
+  const chosen = String(raw).trim();
+  if (!chosen) return;
+  const name = suggestUniqueProjectName(chosen, projects);
+  const snapshot = await captureProjectSnapshot(currentRoute.id);
+  const id = createProjectId();
+  projects.push({ id, name, createdAt: Date.now() });
+  writeProjects(projects);
+  await switchProject(id);
+  await replaceProjectWithSnapshot(snapshot || { groups: [], events: [] });
+  selectedGroup = null;
+  selectedMode = null;
+  exitSelectionMode();
+  await load();
+  renderProjectList();
+  applyPanelSearchFilter();
+  feedback.textContent = t('projectCreated');
+  clearFeedbackSoon(1000);
+});
+
+clearTotalsBtn?.addEventListener('click', async () => {
+  routeActionsMenuOpen = false;
+  renderRouteActionsMenu();
+  if (!confirm(t('confirmClearTotals'))) return;
+  const groups = await getGroupsWithTotals();
+  const cleanSnapshot = {
+    groups: groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      createdAt: Number(g.createdAt) || Date.now()
+    })),
+    events: []
+  };
+  await replaceProjectWithSnapshot(cleanSnapshot);
+  selectedGroup = null;
+  selectedMode = null;
+  exitSelectionMode();
+  await load();
+  feedback.textContent = t('routeTotalsCleared');
+  clearFeedbackSoon(1000);
+});
+
+currentRouteHistoryBtn?.addEventListener('click', async () => {
+  routeActionsMenuOpen = false;
+  renderRouteActionsMenu();
+  const currentRoute = getCurrentRouteRecord();
+  if (!currentRoute) return;
+  openHistoryModal();
+  await renderHistoryForProject(currentRoute.id, `${t('globalHistory')} · ${currentRoute.name}`);
+});
+
+currentRouteRenameBtn?.addEventListener('click', () => {
+  routeActionsMenuOpen = false;
+  renderRouteActionsMenu();
+  const currentRoute = getCurrentRouteRecord();
+  if (!currentRoute) return;
+  const projects = readProjects();
+  const idx = projects.findIndex((p) => p.id === currentRoute.id);
+  if (idx < 0) return;
+  const next = prompt(t('projectNamePrompt'), String(projects[idx].name || ''));
+  if (next == null) return;
+  const name = String(next).trim();
+  if (!name || name === projects[idx].name) return;
+  if (projects.some((p, i) => i !== idx && String(p.name).toLowerCase() === name.toLowerCase())) {
+    feedback.textContent = `⚠ ${t('error')}`;
+    clearFeedbackSoon(900);
+    return;
+  }
+  projects[idx].name = name;
+  writeProjects(projects);
+  renderProjectList();
+  applyPanelSearchFilter();
+  feedback.textContent = t('projectRenamed');
+  clearFeedbackSoon(1000);
+});
+
+currentRouteTemplateBtn?.addEventListener('click', async () => {
+  routeActionsMenuOpen = false;
+  renderRouteActionsMenu();
+  const currentRoute = getCurrentRouteRecord();
+  if (!currentRoute) return;
+  await saveProjectAsTemplate(currentRoute.id, currentRoute.name || '');
+});
+
+currentRouteRenameBtnSearch?.addEventListener('click', () => {
+  currentRouteRenameBtn?.click();
+});
+
+currentRouteTemplateBtnSearch?.addEventListener('click', () => {
+  currentRouteTemplateBtn?.click();
 });
 
 createProjectBtn?.addEventListener('click', async () => {
@@ -2894,6 +3169,20 @@ projectList?.addEventListener('click', async (e) => {
     renderProjectList();
     applyPanelSearchFilter();
     await saveProjectAsTemplate(id, project?.name || '');
+    return;
+  }
+
+  const historyBtn = e.target.closest('.panel-view-project-history');
+  if (historyBtn) {
+    const id = historyBtn.getAttribute('data-id');
+    if (!id) return;
+    const project = readProjects().find((p) => p.id === id);
+    openProjectMenuId = null;
+    renderProjectList();
+    applyPanelSearchFilter();
+    openHistoryModal();
+    const title = project?.name ? `${t('globalHistory')} · ${project.name}` : t('globalHistory');
+    await renderHistoryForProject(id, title);
     return;
   }
 

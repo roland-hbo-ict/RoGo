@@ -39,6 +39,67 @@
       <button id="panelSettingsBtn" class="icon-btn panel-gear" aria-label="Settings" title="Settings">⚙</button>
     </div>
 
+    <section class="sidepanel-section panel-section" data-title="currentRoute">
+      <div class="sidepanel-title" id="currentRouteTitle">Current route</div>
+
+      <div class="sidepanel-route-actions-wrap">
+        <div class="sidepanel-row sidepanel-row-create">
+          <div>
+            <div id="routeActionsTitle" class="setting-title">Actions</div>
+            <div id="routeActionsSub" class="setting-sub">More actions for this route</div>
+          </div>
+          <button id="routeActionsMenuBtn" class="btn install-btn" type="button">Actions</button>
+          <button id="routeActionsModeBtn" class="btn install-btn sidepanel-mode-toggle" type="button" aria-label="Actions menu" title="Actions menu">▾</button>
+        </div>
+        <div id="routeActionsMenu" class="panel-project-menu panel-create-menu">
+          <button id="importCardsBtn" class="btn install-btn" type="button">Import customers</button>
+          <button id="exportRouteBtn" class="btn install-btn" type="button">Export</button>
+          <button id="duplicateRouteBtn" class="btn install-btn" type="button">Duplicate</button>
+          <button id="clearTotalsBtn" class="btn danger-btn" type="button">Clear</button>
+          <button id="currentRouteRenameBtn" class="btn install-btn" type="button">Edit name</button>
+          <button id="currentRouteTemplateBtn" class="btn install-btn" type="button">Save as template</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="currentRouteHistoryTitle" class="setting-title">View history</div>
+          <div id="currentRouteHistorySub" class="setting-sub">Open history for this route</div>
+        </div>
+
+        <button id="currentRouteHistoryBtn" class="btn install-btn" type="button">
+          View
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div id="reorderTitle" class="setting-title">Re-order customers</div>
+          <div id="reorderSub" class="setting-sub">Move names without details</div>
+        </div>
+
+        <button id="reorderCardsBtn" class="btn install-btn" type="button">
+          Re-order
+        </button>
+      </div>
+
+      <div class="setting-row search-only-action" data-keywords="rename edit name route project hernoem naam">
+        <div>
+          <div id="currentRouteRenameTitle" class="setting-title">Edit name</div>
+          <div id="currentRouteRenameSub" class="setting-sub">Rename this route</div>
+        </div>
+        <button id="currentRouteRenameBtnSearch" class="btn install-btn" type="button">Edit</button>
+      </div>
+
+      <div class="setting-row search-only-action" data-keywords="template save route project opslaan">
+        <div>
+          <div id="currentRouteTemplateTitle" class="setting-title">Save as template</div>
+          <div id="currentRouteTemplateSub" class="setting-sub">Create template from this route</div>
+        </div>
+        <button id="currentRouteTemplateBtnSearch" class="btn install-btn" type="button">Save</button>
+      </div>
+    </section>
+
     <section class="sidepanel-section panel-section" data-title="projects">
       <div class="sidepanel-title">Projects</div>
       <div class="sidepanel-create-wrap">
@@ -85,39 +146,6 @@
 
         <button id="resetBtn" class="btn danger-btn" type="button">
           Reset
-        </button>
-      </div>
-
-      <div class="setting-row">
-        <div>
-          <div id="importTitle" class="setting-title">Import customers</div>
-          <div id="importSub" class="setting-sub">Paste copied customer text</div>
-        </div>
-
-        <button id="importCardsBtn" class="btn install-btn" type="button">
-          Import
-        </button>
-      </div>
-
-      <div class="setting-row">
-        <div>
-          <div id="reorderTitle" class="setting-title">Re-order customers</div>
-          <div id="reorderSub" class="setting-sub">Move names without details</div>
-        </div>
-
-        <button id="reorderCardsBtn" class="btn install-btn" type="button">
-          Re-order
-        </button>
-      </div>
-
-      <div class="setting-row">
-        <div>
-          <div id="historyGlobalTitle" class="setting-title">Global history</div>
-          <div id="historyGlobalSub" class="setting-sub">All customer events</div>
-        </div>
-
-        <button id="openGlobalHistoryBtn" class="btn install-btn" type="button">
-          Open
         </button>
       </div>
 
