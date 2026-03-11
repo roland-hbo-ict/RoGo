@@ -22,11 +22,18 @@
 
 <div id="app">
   <div id="selectionBar" class="selection-bar hidden">
-    <button id="selCancel" type="button" class="btn cancel-btn">Cancel</button>
-    <div id="selCount" class="sel-count">0 selected</div>
-    <button id="selCopy" type="button" class="btn install-btn">Copy</button>
-    <button id="selShare" type="button" class="btn install-btn">Share</button>
-    <button id="selDelete" type="button" class="btn danger-btn">Delete</button>
+    <div class="selection-bar-main">
+      <button id="selCancel" type="button" class="btn cancel-btn">Cancel</button>
+      <div class="selection-bar-status">
+        <div id="selKicker" class="selection-bar-kicker">Multi-selection active</div>
+        <div id="selCount" class="sel-count">0 selected</div>
+      </div>
+    </div>
+    <div class="selection-bar-actions">
+      <button id="selCopy" type="button" class="btn install-btn">Copy</button>
+      <button id="selShare" type="button" class="btn install-btn">Share</button>
+      <button id="selDelete" type="button" class="btn danger-btn">Delete</button>
+    </div>
   </div>
   <main id="list"></main>
 </div>
@@ -43,60 +50,85 @@
       <div class="sidepanel-title" id="currentRouteTitle">Current route</div>
 
       <div class="sidepanel-route-actions-wrap">
-        <div class="sidepanel-row sidepanel-row-create">
-          <div>
-            <div id="routeActionsTitle" class="setting-title">Actions</div>
-            <div id="routeActionsSub" class="setting-sub">More actions for this route</div>
-          </div>
-          <button id="routeActionsMenuBtn" class="btn install-btn" type="button">Actions</button>
-          <button id="routeActionsModeBtn" class="btn install-btn sidepanel-mode-toggle" type="button" aria-label="Actions menu" title="Actions menu">▾</button>
-        </div>
-        <div id="routeActionsMenu" class="panel-project-menu panel-create-menu">
-          <button id="importCardsBtn" class="btn install-btn" type="button">Import customers</button>
-          <button id="exportRouteBtn" class="btn install-btn" type="button">Export</button>
-          <button id="duplicateRouteBtn" class="btn install-btn" type="button">Duplicate</button>
-          <button id="clearTotalsBtn" class="btn danger-btn" type="button">Clear</button>
-          <button id="currentRouteRenameBtn" class="btn install-btn" type="button">Edit name</button>
-          <button id="currentRouteTemplateBtn" class="btn install-btn" type="button">Save as template</button>
-        </div>
-      </div>
-
-      <div class="setting-row">
         <div>
-          <div id="currentRouteHistoryTitle" class="setting-title">View history</div>
-          <div id="currentRouteHistorySub" class="setting-sub">Open history for this route</div>
+          <div id="routeActionsTitle" class="setting-title">Actions</div>
+          <div id="routeActionsSub" class="setting-sub">Expand to show all route options</div>
         </div>
-
-        <button id="currentRouteHistoryBtn" class="btn install-btn" type="button">
-          View
-        </button>
+        <button id="routeActionsMenuBtn" class="btn install-btn route-actions-expand-btn" type="button" aria-controls="routeActionsMenu" aria-expanded="false">Expand options</button>
+        <div class="setting-row route-action-row" data-keywords="screenshot import klanten route afbeelding scan ocr">
+          <div>
+            <div id="importScreenshotTitle" class="setting-title">Import from screenshot</div>
+            <div id="importScreenshotSub" class="setting-sub">Choose route screenshots and auto-create customer cards</div>
+          </div>
+          <button id="importScreenshotBtn" class="btn install-btn" type="button">Scan</button>
+          <input id="importScreenshotInput" type="file" accept="image/*" multiple hidden />
+        </div>
+        <div id="routeActionsMenu" class="route-actions-list">
+          <div class="setting-row route-action-row" data-keywords="import klanten route">
+            <div>
+              <div id="importTitle" class="setting-title">Import customers</div>
+              <div id="importSub" class="setting-sub">Paste copied customer lines and add them to this route</div>
+            </div>
+            <button id="importCardsBtn" class="btn install-btn" type="button">Import</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="export klanten route copy deel">
+            <div>
+              <div id="exportRouteTitle" class="setting-title">Export customers</div>
+              <div id="exportRouteSub" class="setting-sub">Copy all customers from this route to your clipboard</div>
+            </div>
+            <button id="exportRouteBtn" class="btn install-btn" type="button">Export</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="duplicate route kopie">
+            <div>
+              <div id="duplicateRouteTitle" class="setting-title">Duplicate route</div>
+              <div id="duplicateRouteSub" class="setting-sub">Create a full copy with customers and totals</div>
+            </div>
+            <button id="duplicateRouteBtn" class="btn install-btn" type="button">Duplicate</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="clear totals reset route">
+            <div>
+              <div id="clearTotalsTitle" class="setting-title">Clear route totals</div>
+              <div id="clearTotalsSub" class="setting-sub">Reset delivered and return totals while keeping customers</div>
+            </div>
+            <button id="clearTotalsBtn" class="btn danger-btn" type="button">Clear</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="history route">
+            <div>
+              <div id="currentRouteHistoryTitle" class="setting-title">View history</div>
+              <div id="currentRouteHistorySub" class="setting-sub">Open history for this route</div>
+            </div>
+            <button id="currentRouteHistoryBtn" class="btn install-btn" type="button">View</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="rename edit name route project hernoem naam">
+            <div>
+              <div id="currentRouteRenameTitle" class="setting-title">Edit name</div>
+              <div id="currentRouteRenameSub" class="setting-sub">Change the route name used in your route list</div>
+            </div>
+            <button id="currentRouteRenameBtn" class="btn install-btn" type="button">Edit</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="template save route project opslaan">
+            <div>
+              <div id="currentRouteTemplateTitle" class="setting-title">Save as template</div>
+              <div id="currentRouteTemplateSub" class="setting-sub">Store this route as a reusable starting point</div>
+            </div>
+            <button id="currentRouteTemplateBtn" class="btn install-btn" type="button">Save</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="multi selection klanten selecteer meerdere">
+            <div>
+              <div id="startMultiSelectTitle" class="setting-title">Start multi-selection</div>
+              <div id="startMultiSelectSub" class="setting-sub">Select all customers for copy, share, or delete actions</div>
+            </div>
+            <button id="startMultiSelectBtn" class="btn install-btn" type="button">Start</button>
+          </div>
+        </div>
       </div>
 
-      <div class="setting-row">
+      <div class="setting-row" data-keywords="reorder customers volgorde">
         <div>
           <div id="reorderTitle" class="setting-title">Re-order customers</div>
           <div id="reorderSub" class="setting-sub">Move names without details</div>
         </div>
-
-        <button id="reorderCardsBtn" class="btn install-btn" type="button">
-          Re-order
-        </button>
-      </div>
-
-      <div class="setting-row search-only-action" data-keywords="rename edit name route project hernoem naam">
-        <div>
-          <div id="currentRouteRenameTitle" class="setting-title">Edit name</div>
-          <div id="currentRouteRenameSub" class="setting-sub">Rename this route</div>
-        </div>
-        <button id="currentRouteRenameBtnSearch" class="btn install-btn" type="button">Edit</button>
-      </div>
-
-      <div class="setting-row search-only-action" data-keywords="template save route project opslaan">
-        <div>
-          <div id="currentRouteTemplateTitle" class="setting-title">Save as template</div>
-          <div id="currentRouteTemplateSub" class="setting-sub">Create template from this route</div>
-        </div>
-        <button id="currentRouteTemplateBtnSearch" class="btn install-btn" type="button">Save</button>
+        <button id="reorderCardsBtn" class="btn install-btn" type="button">Re-order</button>
       </div>
     </section>
 
@@ -108,13 +140,9 @@
           <button id="createProjectBtn" class="btn install-btn" type="button">Create</button>
           <button id="createProjectModeBtn" class="btn install-btn sidepanel-mode-toggle" type="button" aria-label="Create mode" title="Create mode">▾</button>
         </div>
-        <div id="createProjectModeMenu" class="panel-project-menu panel-create-menu">
-          <button id="createModeNewBtn" class="btn install-btn" data-mode="new" type="button">Create new</button>
-          <button id="createModeTemplateBtn" class="btn install-btn" data-mode="template" type="button">Use template</button>
+        <div class="sidepanel-row sidepanel-template-launch">
+          <button id="openCreateTemplateModalBtn" class="btn install-btn" type="button">Use template</button>
         </div>
-      </div>
-      <div id="createProjectTemplateRow" class="sidepanel-row sidepanel-template-source hidden">
-        <select id="createProjectTemplateSelect" class="select"></select>
       </div>
       <div id="projectList" class="panel-list"></div>
     </section>
@@ -173,6 +201,17 @@
         </select>
       </div>
 
+      <div class="setting-row" data-keywords="freezer vriezer koelcel storage split">
+        <div>
+          <div id="freezerFeatureTitle" class="setting-title">Freezer feature</div>
+          <div id="freezerFeatureSub" class="setting-sub">Show cooler / freezer split on cards</div>
+        </div>
+        <label class="switch">
+          <input id="freezerToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <div class="setting-row">
         <div>
           <div id="themeTitle" class="setting-title">Theme</div>
@@ -193,6 +232,50 @@
           <input id="handToggle" type="checkbox" />
           <span class="slider"></span>
         </label>
+      </div>
+    </section>
+
+    <section class="sidepanel-section panel-section dev-tools-section" data-title="devtools">
+      <div class="sidepanel-title" id="devToolsTitle">Developer tools</div>
+
+      <div class="setting-row" data-keywords="dev snapshot route json">
+        <div>
+          <div id="devRouteSnapshotTitle" class="setting-title">Copy route snapshot</div>
+          <div id="devRouteSnapshotSub" class="setting-sub">Copy the current route database snapshot as JSON</div>
+        </div>
+        <button id="devRouteSnapshotBtn" class="btn install-btn" type="button">Copy</button>
+      </div>
+
+      <div class="setting-row" data-keywords="dev export route text cards">
+        <div>
+          <div id="devRouteTextTitle" class="setting-title">Copy route text</div>
+          <div id="devRouteTextSub" class="setting-sub">Copy the current route in the normal shared text format</div>
+        </div>
+        <button id="devRouteTextBtn" class="btn install-btn" type="button">Copy</button>
+      </div>
+
+      <div class="setting-row" data-keywords="dev state app json viewport">
+        <div>
+          <div id="devAppStateTitle" class="setting-title">Copy app state</div>
+          <div id="devAppStateSub" class="setting-sub">Copy settings, selection, and viewport info as JSON</div>
+        </div>
+        <button id="devAppStateBtn" class="btn install-btn" type="button">Copy</button>
+      </div>
+
+      <div class="setting-row" data-keywords="dev viewport resync keyboard cli">
+        <div>
+          <div id="devViewportSyncTitle" class="setting-title">Resync viewport</div>
+          <div id="devViewportSyncSub" class="setting-sub">Re-run viewport positioning logic for the CLI and modals</div>
+        </div>
+        <button id="devViewportSyncBtn" class="btn install-btn" type="button">Run</button>
+      </div>
+
+      <div class="setting-row" data-keywords="dev easter egg snow winter party">
+        <div>
+          <div id="devSnowfallTitle" class="setting-title">Snowfall</div>
+          <div id="devSnowfallSub" class="setting-sub">Drop a small freezer-flake storm across the app</div>
+        </div>
+        <button id="devSnowfallBtn" class="btn install-btn" type="button">Run</button>
       </div>
     </section>
   </aside>
@@ -237,10 +320,57 @@
   </div>
 </div>
 
+<!-- Screenshot Loading Modal -->
+<div id="screenshotLoadingBackdrop" class="modal-backdrop hidden screenshot-loading-backdrop">
+  <div class="modal screenshot-loading-modal" role="status" aria-live="polite" aria-busy="true">
+    <div class="screenshot-loading-orb" aria-hidden="true">
+      <div class="screenshot-loading-orb-core"></div>
+      <div class="screenshot-loading-orb-ring"></div>
+    </div>
+    <h3 id="screenshotLoadingTitle">Import from screenshot</h3>
+    <div id="screenshotLoadingSub" class="screenshot-loading-sub">Please wait while the screenshots are being processed.</div>
+    <div id="screenshotLoadingStatus" class="screenshot-loading-status">Loading OCR engine...</div>
+    <div id="screenshotLoadingTimeout" class="screenshot-loading-timeout">Stops automatically after 20s if it takes too long.</div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div id="actionDialogBackdrop" class="modal-backdrop hidden">
+  <div id="actionDialogModal" class="modal action-dialog-modal" role="dialog" aria-modal="true" aria-labelledby="actionDialogTitle">
+    <div class="action-dialog-hero" aria-hidden="true">
+      <div class="action-dialog-hero-core"></div>
+      <div class="action-dialog-hero-ring"></div>
+    </div>
+    <div id="actionDialogKicker" class="action-dialog-kicker"></div>
+    <h3 id="actionDialogTitle">Confirm</h3>
+    <div id="actionDialogSub" class="action-dialog-sub"></div>
+    <div id="actionDialogBody" class="action-dialog-body"></div>
+    <div id="actionDialogInputWrap" class="action-dialog-input-wrap">
+      <input id="actionDialogInput" type="text" autocomplete="off" />
+    </div>
+    <div id="actionDialogDetails" class="action-dialog-details"></div>
+    <div class="modal-actions action-dialog-actions">
+      <button id="actionDialogCancel" class="btn cancel-btn" type="button">Cancel</button>
+      <button id="actionDialogConfirm" class="btn create-btn" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <!-- Reorder Modal -->
 <div id="reorderBackdrop" class="modal-backdrop hidden">
-  <div class="modal">
+  <div class="modal reorder-modal" role="dialog" aria-modal="true" aria-labelledby="reorderModalTitle">
+    <div class="reorder-hero" aria-hidden="true">
+      <div class="reorder-hero-stack">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="reorder-hero-arrow"></div>
+    </div>
+    <div class="reorder-kicker">Re-order</div>
     <h3 id="reorderModalTitle">Re-order customers</h3>
+    <div id="reorderModalSub" class="reorder-modal-sub"></div>
+    <div id="reorderModalMeta" class="reorder-modal-meta"></div>
     <div id="reorderList" class="reorder-list"></div>
     <div class="modal-actions">
       <button id="cancelReorder" class="btn cancel-btn" type="button">Cancel</button>
@@ -251,8 +381,17 @@
 
 <!-- History Modal -->
 <div id="historyBackdrop" class="modal-backdrop hidden">
-  <div class="modal">
+  <div class="modal history-modal" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle">
+    <div class="history-hero" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+      <i></i>
+    </div>
+    <div id="historyModalKicker" class="history-kicker">History</div>
     <h3 id="historyModalTitle">History</h3>
+    <div id="historyModalSub" class="history-modal-sub"></div>
+    <div id="historyModalMeta" class="history-modal-meta"></div>
     <div id="historyList" class="history-list"></div>
     <div class="modal-actions">
       <button id="closeHistory" class="btn cancel-btn" type="button">Close</button>
@@ -260,11 +399,40 @@
   </div>
 </div>
 
+<!-- Create From Template Modal -->
+<div id="templateCreateBackdrop" class="modal-backdrop hidden">
+  <div class="modal template-create-modal" role="dialog" aria-modal="true" aria-labelledby="templateCreateModalTitle">
+    <div id="templateCreateKicker" class="template-create-kicker">Use template</div>
+    <h3 id="templateCreateModalTitle">Create route from template</h3>
+    <div id="templateCreateModalSub" class="template-create-sub">Choose a template, preview customers, and edit the route name.</div>
+    <div class="template-create-name-wrap">
+      <input id="templateCreateName" type="text" autocomplete="off" enterkeyhint="go" />
+    </div>
+    <div class="template-create-layout">
+      <div id="templateCreateList" class="template-create-list"></div>
+      <div class="template-create-preview">
+        <div class="template-create-preview-head">
+          <div id="templateCreatePreviewTitle" class="template-create-preview-title"></div>
+          <div id="templateCreatePreviewMeta" class="template-create-preview-meta"></div>
+        </div>
+        <div id="templateCreatePreviewList" class="template-create-preview-list"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="cancelTemplateCreate" class="btn cancel-btn" type="button">Cancel</button>
+      <button id="confirmTemplateCreate" class="btn create-btn" type="button">Create</button>
+    </div>
+  </div>
+</div>
+
 <!-- Template Preview Modal -->
 <div id="templatePreviewBackdrop" class="modal-backdrop hidden">
-  <div class="modal">
+  <div class="modal template-preview-modal" role="dialog" aria-modal="true" aria-labelledby="templatePreviewModalTitle">
+    <div class="template-preview-kicker">Template preview</div>
     <h3 id="templatePreviewModalTitle">Template preview</h3>
-    <div id="templatePreviewList" class="history-list"></div>
+    <div id="templatePreviewSub" class="template-preview-sub"></div>
+    <div id="templatePreviewSummary" class="template-preview-summary"></div>
+    <div id="templatePreviewList" class="template-preview-list"></div>
     <div class="modal-actions">
       <button id="closeTemplatePreview" class="btn cancel-btn" type="button">Close</button>
     </div>

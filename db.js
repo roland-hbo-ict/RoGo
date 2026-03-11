@@ -1,11 +1,35 @@
 import { TOKEN_ORDER } from './tokens.js';
+import {
+  emptyStorageTotals,
+  normalizeStorage,
+  sumStorageModeTotals
+} from './storage.js';
 
 let db;
 let currentProjectId = 'default';
+const DB_VERSION = 2;
+const TOKEN_INDEX_BY_ID = new Map(TOKEN_ORDER.map((id, index) => [id, index]));
+const TARGET_CODE = Object.freeze({
+  geleverd: 'g',
+  retour: 'r'
+});
+const STORAGE_CODE = Object.freeze({
+  main: 'm',
+  freezer: 'f'
+});
+const LIFECYCLE_CODE = Object.freeze({
+  created: 'c',
+  renamed: 'r',
+  deleted: 'd'
+});
+
+function dbNameForProject(projectId = currentProjectId) {
+  const id = String(projectId || 'default').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `logistics-db-${id}`;
+}
 
 function dbName() {
-  const id = String(currentProjectId || 'default').replace(/[^a-zA-Z0-9_-]/g, '_');
-  return `logistics-db-${id}`;
+  return dbNameForProject(currentProjectId);
 }
 
 export function setCurrentProject(projectId) {
@@ -22,16 +46,163 @@ export function getCurrentProject() {
   return currentProjectId;
 }
 
+export async function compactProjectDatabases(projectIds = []) {
+  const ids = [...new Set((projectIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
+  for (const projectId of ids) {
+    await new Promise((resolve) => {
+      const req = indexedDB.open(dbNameForProject(projectId), DB_VERSION);
+      req.onsuccess = () => {
+        try { req.result?.close(); } catch {}
+        resolve();
+      };
+      req.onupgradeneeded = (event) => {
+        const upgradeDb = event.target.result;
+        if (!upgradeDb.objectStoreNames.contains('groups')) {
+          upgradeDb.createObjectStore('groups', { keyPath: 'id', autoIncrement: true });
+        }
+        let eventsStore = null;
+        if (!upgradeDb.objectStoreNames.contains('events')) {
+          eventsStore = upgradeDb.createObjectStore('events', { keyPath: 'id', autoIncrement: true });
+        } else {
+          eventsStore = event.target.transaction.objectStore('events');
+        }
+        if (event.oldVersion < 2 && eventsStore) {
+          migrateEventsStoreToCompact(eventsStore);
+        }
+      };
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+    });
+  }
+}
+
+function decodeTarget(code) {
+  return code === TARGET_CODE.retour || code === 'retour' ? 'retour' : 'geleverd';
+}
+
+function decodeStorage(code) {
+  return code === STORAGE_CODE.freezer || code === 'freezer' ? 'freezer' : 'main';
+}
+
+function decodeLifecycleAction(code) {
+  if (code === LIFECYCLE_CODE.deleted || code === 'deleted') return 'deleted';
+  if (code === LIFECYCLE_CODE.renamed || code === 'renamed') return 'renamed';
+  return 'created';
+}
+
+function isCompactEventRecord(record) {
+  return !!(
+    record &&
+    (
+      Array.isArray(record.d) ||
+      record.k === 'l' ||
+      record.t === TARGET_CODE.geleverd ||
+      record.t === TARGET_CODE.retour
+    )
+  );
+}
+
+function encodeEventRecord(record) {
+  if (!record) return record;
+  if (isCompactEventRecord(record)) return { ...record };
+
+  const encoded = {
+    g: Number(record.groupId || 0),
+    ts: Number(record.timestamp || 0) || Date.now()
+  };
+  if (record.id != null) encoded.id = Number(record.id);
+
+  if (record.kind === 'lifecycle') {
+    encoded.k = 'l';
+    encoded.a = LIFECYCLE_CODE[record.action] || LIFECYCLE_CODE.created;
+    const currentName = String(record.groupName || record.newName || '').trim();
+    if (currentName) encoded.n = currentName;
+    if (record.action === 'renamed') {
+      const oldName = String(record.oldName || '').trim();
+      if (oldName) encoded.o = oldName;
+    }
+    return encoded;
+  }
+
+  encoded.t = TARGET_CODE[record.target === 'retour' ? 'retour' : 'geleverd'];
+  encoded.s = STORAGE_CODE[normalizeStorage(record.storage)];
+  encoded.d = [];
+
+  for (const tokenId of TOKEN_ORDER) {
+    const value = Number(record?.[tokenId] || 0);
+    if (value === 0) continue;
+    encoded.d.push([TOKEN_INDEX_BY_ID.get(tokenId), value]);
+  }
+
+  return encoded;
+}
+
+function decodeEventRecord(record) {
+  if (!record) return record;
+  if (!isCompactEventRecord(record)) return { ...record };
+
+  const decoded = {
+    id: record.id,
+    groupId: Number(record.g || 0),
+    timestamp: Number(record.ts || 0)
+  };
+
+  if (record.k === 'l') {
+    const action = decodeLifecycleAction(record.a);
+    decoded.kind = 'lifecycle';
+    decoded.action = action;
+    if (record.n) decoded.groupName = String(record.n);
+    if (action === 'renamed') {
+      decoded.oldName = String(record.o || '');
+      decoded.newName = String(record.n || '');
+    }
+    return decoded;
+  }
+
+  decoded.target = decodeTarget(record.t);
+  decoded.storage = decodeStorage(record.s);
+  for (const entry of Array.isArray(record.d) ? record.d : []) {
+    const [tokenIndex, rawValue] = entry;
+    const tokenId = TOKEN_ORDER[Number(tokenIndex)];
+    const value = Number(rawValue || 0);
+    if (!tokenId || value === 0) continue;
+    decoded[tokenId] = value;
+  }
+  return decoded;
+}
+
+function migrateEventsStoreToCompact(eventsStore) {
+  eventsStore.openCursor().onsuccess = (event) => {
+    const cursor = event.target.result;
+    if (!cursor) return;
+    const value = cursor.value;
+    if (!isCompactEventRecord(value)) {
+      cursor.update(encodeEventRecord({ ...value, id: value?.id ?? cursor.primaryKey }));
+    }
+    cursor.continue();
+  };
+}
+
 export async function openDB() {
   if (db) return db;
 
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(dbName(), 1);
+    const req = indexedDB.open(dbName(), DB_VERSION);
 
     req.onupgradeneeded = e => {
       db = e.target.result;
-      db.createObjectStore('groups', { keyPath: 'id', autoIncrement: true });
-      db.createObjectStore('events', { keyPath: 'id', autoIncrement: true });
+      if (!db.objectStoreNames.contains('groups')) {
+        db.createObjectStore('groups', { keyPath: 'id', autoIncrement: true });
+      }
+      let eventsStore = null;
+      if (!db.objectStoreNames.contains('events')) {
+        eventsStore = db.createObjectStore('events', { keyPath: 'id', autoIncrement: true });
+      } else {
+        eventsStore = e.target.transaction.objectStore('events');
+      }
+      if (e.oldVersion < 2 && eventsStore) {
+        migrateEventsStoreToCompact(eventsStore);
+      }
     };
 
     req.onsuccess = e => {
@@ -77,32 +248,36 @@ export async function ensureGroup(name) {
 
 export async function addEvent(evt) {
   await openDB();
-  evt.timestamp = Date.now();
-  await req(store('events', 'readwrite').add(evt));
+  const encoded = encodeEventRecord({
+    ...evt,
+    timestamp: Date.now()
+  });
+  await req(store('events', 'readwrite').add(encoded));
 }
 
 export async function getGroupsWithTotals() {
   await openDB();
   const groups = await req(store('groups').getAll());
-  const events = await req(store('events').getAll());
+  const events = (await req(store('events').getAll())).map(decodeEventRecord);
 
   return groups.map(g => {
     const ev = events.filter(e => e.groupId === g.id);
+    const storage = emptyStorageTotals();
 
-    const sum = target =>
-      ev
-        .filter(e => e.target === target)
-        .reduce((acc, evt) => {
-          for (const k of TOKEN_ORDER) {
-            acc[k] = (acc[k] || 0) + (Number(evt[k]) || 0);
-          }
-          return acc;
-        }, Object.fromEntries(TOKEN_ORDER.map(k => [k, 0])));
+    for (const evt of ev) {
+      const target = evt?.target === 'retour' ? 'retour' : evt?.target === 'geleverd' ? 'geleverd' : null;
+      if (!target) continue;
+      const bucket = storage[normalizeStorage(evt?.storage)][target];
+      for (const k of TOKEN_ORDER) {
+        bucket[k] += Number(evt?.[k] || 0);
+      }
+    }
 
     return {
       ...g,
-      geleverd: sum('geleverd'),
-      retour: sum('retour')
+      storage,
+      geleverd: sumStorageModeTotals(storage, 'geleverd'),
+      retour: sumStorageModeTotals(storage, 'retour')
     };
   });
 }
@@ -172,7 +347,7 @@ export async function deleteGroups(groupIds) {
 
 export async function getHistoryEvents({ groupId = null, limit = 500 } = {}) {
   await openDB();
-  const events = await req(store('events').getAll());
+  const events = (await req(store('events').getAll())).map(decodeEventRecord);
   const id = groupId == null ? null : Number(groupId);
 
   const filtered = events.filter(e => {
@@ -187,7 +362,7 @@ export async function getHistoryEvents({ groupId = null, limit = 500 } = {}) {
 export async function exportProjectSnapshot() {
   await openDB();
   const groups = await req(store('groups').getAll());
-  const events = await req(store('events').getAll());
+  const events = (await req(store('events').getAll())).map(decodeEventRecord);
   return {
     groups: groups.map(g => ({ ...g })),
     events: events.map(e => ({ ...e }))
@@ -207,7 +382,7 @@ export async function replaceProjectWithSnapshot(snapshot) {
   eventsOS.clear();
 
   for (const g of groups) groupsOS.put({ ...g });
-  for (const e of events) eventsOS.put({ ...e });
+  for (const e of events) eventsOS.put(encodeEventRecord(e));
 
   await new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
