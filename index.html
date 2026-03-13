@@ -20,6 +20,14 @@
   <span class="version" id="version"></span>
 </header>
 
+<div id="cliPracticeBanner" class="cli-practice-banner hidden">
+  <div class="cli-practice-copy">
+    <div id="cliPracticeKicker" class="cli-practice-kicker">Zelf testen actief</div>
+    <div id="cliPracticeSub" class="cli-practice-sub">Het echte invoerveld hieronder werkt nu veilig. Niets wordt opgeslagen.</div>
+  </div>
+  <button id="cliPracticeToggleBtn" class="btn cancel-btn" type="button">Stop</button>
+</div>
+
 <div id="app">
   <div id="selectionBar" class="selection-bar hidden">
     <div class="selection-bar-main">
@@ -46,89 +54,106 @@
       <button id="panelSettingsBtn" class="icon-btn panel-gear" aria-label="Settings" title="Settings">⚙</button>
     </div>
 
+    <section class="sidepanel-section panel-section help-panel-section" data-title="help">
+      <div class="sidepanel-title" id="helpSectionTitle">Help</div>
+      <div class="setting-row help-launch-row" data-keywords="help tutorial guide walkthrough tips syntax invoer rondleiding uitleg chips shortcuts rogo why count counting brain">
+        <div>
+          <div id="helpLaunchTitle" class="setting-title">RoGo uitgelegd</div>
+          <div id="helpLaunchSub" class="setting-sub">Open waarom RoGo bestaat, invoervoorbeelden en een korte rondleiding</div>
+        </div>
+        <button id="openHelpModalBtn" class="btn install-btn" type="button">Open</button>
+      </div>
+    </section>
+
     <section class="sidepanel-section panel-section" data-title="currentRoute">
       <div class="sidepanel-title" id="currentRouteTitle">Current route</div>
 
       <div class="sidepanel-route-actions-wrap">
         <div>
-          <div id="routeActionsTitle" class="setting-title">Actions</div>
-          <div id="routeActionsSub" class="setting-sub">Expand to show all route options</div>
+          <div id="routeActionsTitle" class="setting-title">Route actions</div>
+          <div id="routeActionsSub" class="setting-sub">Everything for this route in one place</div>
         </div>
         <button id="routeActionsMenuBtn" class="btn install-btn route-actions-expand-btn" type="button" aria-controls="routeActionsMenu" aria-expanded="false">Expand options</button>
-        <div class="setting-row route-action-row" data-keywords="screenshot import klanten route afbeelding scan ocr">
-          <div>
-            <div id="importScreenshotTitle" class="setting-title">Import from screenshot</div>
-            <div id="importScreenshotSub" class="setting-sub">Choose route screenshots and auto-create customer cards</div>
-          </div>
-          <button id="importScreenshotBtn" class="btn install-btn" type="button">Scan</button>
-          <input id="importScreenshotInput" type="file" accept="image/*" multiple hidden />
-        </div>
         <div id="routeActionsMenu" class="route-actions-list">
-          <div class="setting-row route-action-row" data-keywords="import klanten route">
+          <div class="setting-row route-action-row route-action-pinned" data-keywords="screenshot import klanten route afbeelding scan ocr bezorgbaas">
             <div>
-              <div id="importTitle" class="setting-title">Import customers</div>
-              <div id="importSub" class="setting-sub">Paste copied customer lines and add them to this route</div>
+              <div id="importScreenshotTitle" class="setting-title">Import from screenshot</div>
+              <div id="importScreenshotSub" class="setting-sub">Import customer lines from screenshots from the Bezorgbaas app</div>
+            </div>
+            <button id="importScreenshotBtn" class="btn install-btn" type="button">Import</button>
+            <input id="importScreenshotInput" type="file" accept="image/*" multiple hidden />
+          </div>
+          <div class="setting-row route-action-row" data-keywords="import klanten route rogo export copy tekst gedeeld ontvangen">
+            <div>
+              <div id="importTitle" class="setting-title">Import from text</div>
+              <div id="importSub" class="setting-sub">Paste customer lines from RoGo, for example shared via Export customers</div>
             </div>
             <button id="importCardsBtn" class="btn install-btn" type="button">Import</button>
           </div>
           <div class="setting-row route-action-row" data-keywords="export klanten route copy deel">
             <div>
               <div id="exportRouteTitle" class="setting-title">Export customers</div>
-              <div id="exportRouteSub" class="setting-sub">Copy all customers from this route to your clipboard</div>
+              <div id="exportRouteSub" class="setting-sub">Copy all customer lines from this route to your clipboard</div>
             </div>
             <button id="exportRouteBtn" class="btn install-btn" type="button">Export</button>
+          </div>
+          <div class="setting-row route-action-row route-action-pinned" data-keywords="reorder customers volgorde">
+            <div>
+              <div id="reorderTitle" class="setting-title">Reorder customers</div>
+              <div id="reorderSub" class="setting-sub">Adjust the order of customer names</div>
+            </div>
+            <button id="reorderCardsBtn" class="btn install-btn" type="button">Reorder</button>
           </div>
           <div class="setting-row route-action-row" data-keywords="duplicate route kopie">
             <div>
               <div id="duplicateRouteTitle" class="setting-title">Duplicate route</div>
-              <div id="duplicateRouteSub" class="setting-sub">Create a full copy with customers and totals</div>
+              <div id="duplicateRouteSub" class="setting-sub">Create a copy of this route with customers and totals</div>
             </div>
             <button id="duplicateRouteBtn" class="btn install-btn" type="button">Duplicate</button>
           </div>
-          <div class="setting-row route-action-row" data-keywords="clear totals reset route">
-            <div>
-              <div id="clearTotalsTitle" class="setting-title">Clear route totals</div>
-              <div id="clearTotalsSub" class="setting-sub">Reset delivered and return totals while keeping customers</div>
-            </div>
-            <button id="clearTotalsBtn" class="btn danger-btn" type="button">Clear</button>
-          </div>
           <div class="setting-row route-action-row" data-keywords="history route">
             <div>
-              <div id="currentRouteHistoryTitle" class="setting-title">View history</div>
-              <div id="currentRouteHistorySub" class="setting-sub">Open history for this route</div>
+              <div id="currentRouteHistoryTitle" class="setting-title">Search history</div>
+              <div id="currentRouteHistorySub" class="setting-sub">Review and search all changes for this route</div>
             </div>
-            <button id="currentRouteHistoryBtn" class="btn install-btn" type="button">View</button>
+            <button id="currentRouteHistoryBtn" class="btn install-btn" type="button">Search</button>
           </div>
           <div class="setting-row route-action-row" data-keywords="rename edit name route project hernoem naam">
             <div>
-              <div id="currentRouteRenameTitle" class="setting-title">Edit name</div>
-              <div id="currentRouteRenameSub" class="setting-sub">Change the route name used in your route list</div>
+              <div id="currentRouteRenameTitle" class="setting-title">Rename route</div>
+              <div id="currentRouteRenameSub" class="setting-sub">Change the route name in your routes list</div>
             </div>
-            <button id="currentRouteRenameBtn" class="btn install-btn" type="button">Edit</button>
+            <button id="currentRouteRenameBtn" class="btn install-btn" type="button">Rename</button>
           </div>
           <div class="setting-row route-action-row" data-keywords="template save route project opslaan">
             <div>
               <div id="currentRouteTemplateTitle" class="setting-title">Save as template</div>
-              <div id="currentRouteTemplateSub" class="setting-sub">Store this route as a reusable starting point</div>
+              <div id="currentRouteTemplateSub" class="setting-sub">Save this route as a starting point for new routes</div>
             </div>
             <button id="currentRouteTemplateBtn" class="btn install-btn" type="button">Save</button>
           </div>
           <div class="setting-row route-action-row" data-keywords="multi selection klanten selecteer meerdere">
             <div>
-              <div id="startMultiSelectTitle" class="setting-title">Start multi-selection</div>
-              <div id="startMultiSelectSub" class="setting-sub">Select all customers for copy, share, or delete actions</div>
+              <div id="startMultiSelectTitle" class="setting-title">Select multiple customers</div>
+              <div id="startMultiSelectSub" class="setting-sub">Select multiple customers to copy, share, or delete</div>
             </div>
-            <button id="startMultiSelectBtn" class="btn install-btn" type="button">Start</button>
+            <button id="startMultiSelectBtn" class="btn install-btn" type="button">Select</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="clear totals reset route">
+            <div>
+              <div id="clearTotalsTitle" class="setting-title">Clear route totals</div>
+              <div id="clearTotalsSub" class="setting-sub">Reset delivered and return totals to 0</div>
+            </div>
+            <button id="clearTotalsBtn" class="btn danger-btn" type="button">Clear</button>
+          </div>
+          <div class="setting-row route-action-row" data-keywords="delete route remove project verwijderen route">
+            <div>
+              <div id="currentRouteDeleteTitle" class="setting-title">Delete route</div>
+              <div id="currentRouteDeleteSub" class="setting-sub">Delete this route and all customers in it</div>
+            </div>
+            <button id="currentRouteDeleteBtn" class="btn danger-btn" type="button">Delete</button>
           </div>
         </div>
-      </div>
-
-      <div class="setting-row" data-keywords="reorder customers volgorde">
-        <div>
-          <div id="reorderTitle" class="setting-title">Re-order customers</div>
-          <div id="reorderSub" class="setting-sub">Move names without details</div>
-        </div>
-        <button id="reorderCardsBtn" class="btn install-btn" type="button">Re-order</button>
       </div>
     </section>
 
@@ -158,7 +183,7 @@
       <div class="setting-row" id="installRow" style="display:none;">
         <div>
           <div id="installTitle" class="setting-title">Install</div>
-          <div class="setting-sub" id="installHint">Install RoGo as an app</div>
+          <div class="setting-sub" id="installHint">Open RoGo faster from your home screen, also offline</div>
         </div>
 
         <button id="installBtn" class="btn install-btn" type="button">
@@ -168,19 +193,8 @@
 
       <div class="setting-row">
         <div>
-          <div id="resetTitle" class="setting-title">Reset app</div>
-          <div id="resetSub" class="setting-sub">Clear all local data + refresh</div>
-        </div>
-
-        <button id="resetBtn" class="btn danger-btn" type="button">
-          Reset
-        </button>
-      </div>
-
-      <div class="setting-row">
-        <div>
           <div id="languageTitle" class="setting-title">Language</div>
-          <div id="languageSub" class="setting-sub">Dutch / English</div>
+          <div id="languageSub" class="setting-sub">Choose which language RoGo uses</div>
         </div>
 
         <select id="langSelect" class="select">
@@ -189,10 +203,54 @@
         </select>
       </div>
 
+      <div class="setting-row" data-keywords="font size tekst grootte lettertype larger smaller schaal">
+        <div>
+          <div id="fontSizeTitle" class="setting-title">Text size</div>
+          <div id="fontSizeSub" class="setting-sub">Make RoGo a little smaller or larger everywhere</div>
+        </div>
+        <div class="setting-inline setting-inline-font">
+          <span id="fontSizeValue" class="setting-inline-value">Default</span>
+          <input id="fontSizeRange" class="setting-range" type="range" min="-4" max="4" step="1" value="0" />
+        </div>
+      </div>
+
+      <div class="setting-row" data-keywords="freezer vriezer koelcel storage split">
+        <div>
+          <div id="freezerFeatureTitle" class="setting-title">Freezer feature</div>
+          <div id="freezerFeatureSub" class="setting-sub">Keep Cooler and Freezer visibly separate on customer cards</div>
+        </div>
+        <label class="switch">
+          <input id="freezerToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-row help-position-row" data-keywords="help positie position onderaan bottom zijpaneel side panel">
+        <div>
+          <div id="helpPositionTitle" class="setting-title">Help at bottom</div>
+          <div id="helpPositionSub" class="setting-sub">Keep Help at the top or move it to the bottom of the side panel</div>
+        </div>
+        <label class="switch">
+          <input id="helpPositionToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-row" data-keywords="alle totalen all totals summary overzicht samenvatting">
+        <div>
+          <div id="allTotalsSettingTitle" class="setting-title">All totals</div>
+          <div id="allTotalsSettingSub" class="setting-sub">Show the totals summary above the customer list</div>
+        </div>
+        <label class="switch">
+          <input id="allTotalsToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <div class="setting-row">
         <div>
           <div id="cardLayoutTitle" class="setting-title">Customer layout</div>
-          <div id="cardLayoutSub" class="setting-sub">Classic / Compact</div>
+          <div id="cardLayoutSub" class="setting-sub">Choose how roomy or compact customer cards should feel</div>
         </div>
 
         <select id="cardLayoutSelect" class="select">
@@ -201,13 +259,13 @@
         </select>
       </div>
 
-      <div class="setting-row" data-keywords="freezer vriezer koelcel storage split">
+      <div class="setting-row">
         <div>
-          <div id="freezerFeatureTitle" class="setting-title">Freezer feature</div>
-          <div id="freezerFeatureSub" class="setting-sub">Show cooler / freezer split on cards</div>
+          <div id="handedTitle" class="setting-title">Handedness</div>
+          <div id="handedSub" class="setting-sub">Move key buttons to the left for left-handed use</div>
         </div>
         <label class="switch">
-          <input id="freezerToggle" type="checkbox" />
+          <input id="handToggle" type="checkbox" />
           <span class="slider"></span>
         </label>
       </div>
@@ -215,7 +273,7 @@
       <div class="setting-row">
         <div>
           <div id="themeTitle" class="setting-title">Theme</div>
-          <div id="themeSub" class="setting-sub">Dark / Light</div>
+          <div id="themeSub" class="setting-sub">Choose the look that feels calmer to read</div>
         </div>
         <label class="switch">
           <input id="themeToggle" type="checkbox" />
@@ -223,15 +281,23 @@
         </label>
       </div>
 
+      <div class="setting-row" data-keywords="alias aliases invoer items soorten short form keybind">
+        <div>
+          <div id="crateAliasesTitle" class="setting-title">Input aliases</div>
+          <div id="crateAliasesSub" class="setting-sub">Choose your own short forms for TotaalVERS crates. Now: k · g · krat</div>
+        </div>
+        <button id="openCrateAliasesBtn" class="btn install-btn" type="button">Customize</button>
+      </div>
+
       <div class="setting-row">
         <div>
-          <div id="handedTitle" class="setting-title">Handedness</div>
-          <div id="handedSub" class="setting-sub">Buttons on left</div>
+          <div id="resetTitle" class="setting-title">Reset app</div>
+          <div id="resetSub" class="setting-sub">Clear all local RoGo data and start fresh. Hold for 3s.</div>
         </div>
-        <label class="switch">
-          <input id="handToggle" type="checkbox" />
-          <span class="slider"></span>
-        </label>
+
+        <button id="resetBtn" class="btn danger-btn" type="button">
+          Reset
+        </button>
       </div>
     </section>
 
@@ -241,7 +307,7 @@
       <div class="setting-row" data-keywords="dev snapshot route json">
         <div>
           <div id="devRouteSnapshotTitle" class="setting-title">Copy route snapshot</div>
-          <div id="devRouteSnapshotSub" class="setting-sub">Copy the current route database snapshot as JSON</div>
+          <div id="devRouteSnapshotSub" class="setting-sub">Copy the current route as a full JSON snapshot</div>
         </div>
         <button id="devRouteSnapshotBtn" class="btn install-btn" type="button">Copy</button>
       </div>
@@ -249,7 +315,7 @@
       <div class="setting-row" data-keywords="dev export route text cards">
         <div>
           <div id="devRouteTextTitle" class="setting-title">Copy route text</div>
-          <div id="devRouteTextSub" class="setting-sub">Copy the current route in the normal shared text format</div>
+          <div id="devRouteTextSub" class="setting-sub">Copy the current route as readable share text</div>
         </div>
         <button id="devRouteTextBtn" class="btn install-btn" type="button">Copy</button>
       </div>
@@ -257,7 +323,7 @@
       <div class="setting-row" data-keywords="dev state app json viewport">
         <div>
           <div id="devAppStateTitle" class="setting-title">Copy app state</div>
-          <div id="devAppStateSub" class="setting-sub">Copy settings, selection, and viewport info as JSON</div>
+          <div id="devAppStateSub" class="setting-sub">Copy settings, selection, and viewport state as a JSON overview</div>
         </div>
         <button id="devAppStateBtn" class="btn install-btn" type="button">Copy</button>
       </div>
@@ -265,7 +331,7 @@
       <div class="setting-row" data-keywords="dev viewport resync keyboard cli">
         <div>
           <div id="devViewportSyncTitle" class="setting-title">Resync viewport</div>
-          <div id="devViewportSyncSub" class="setting-sub">Re-run viewport positioning logic for the CLI and modals</div>
+          <div id="devViewportSyncSub" class="setting-sub">Restore viewport positions for the input bar and modals</div>
         </div>
         <button id="devViewportSyncBtn" class="btn install-btn" type="button">Run</button>
       </div>
@@ -273,7 +339,7 @@
       <div class="setting-row" data-keywords="dev easter egg snow winter party">
         <div>
           <div id="devSnowfallTitle" class="setting-title">Snowfall</div>
-          <div id="devSnowfallSub" class="setting-sub">Drop a small freezer-flake storm across the app</div>
+          <div id="devSnowfallSub" class="setting-sub">Start a small freezer snow flurry across the app</div>
         </div>
         <button id="devSnowfallBtn" class="btn install-btn" type="button">Run</button>
       </div>
@@ -290,7 +356,21 @@
     <div id="feedback"></div>
     
     <div class="cli-row">
-      <input id="cmd" placeholder="15g 1ct" autocomplete="off" />
+      <input
+        id="cmd"
+        type="search"
+        name="rogo_command"
+        placeholder="15g 1ct"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="none"
+        spellcheck="false"
+        inputmode="text"
+        enterkeyhint="send"
+        aria-autocomplete="none"
+        data-lpignore="true"
+        data-1p-ignore="true"
+      />
       <button id="send" aria-label="Send">➤</button>
     </div>
   </div>
@@ -322,7 +402,7 @@
 
 <!-- Screenshot Loading Modal -->
 <div id="screenshotLoadingBackdrop" class="modal-backdrop hidden screenshot-loading-backdrop">
-  <div class="modal screenshot-loading-modal" role="status" aria-live="polite" aria-busy="true">
+  <div class="modal screenshot-loading-modal" role="dialog" aria-modal="true" aria-labelledby="screenshotLoadingTitle" aria-busy="true">
     <div class="screenshot-loading-orb" aria-hidden="true">
       <div class="screenshot-loading-orb-core"></div>
       <div class="screenshot-loading-orb-ring"></div>
@@ -331,6 +411,9 @@
     <div id="screenshotLoadingSub" class="screenshot-loading-sub">Please wait while the screenshots are being processed.</div>
     <div id="screenshotLoadingStatus" class="screenshot-loading-status">Loading OCR engine...</div>
     <div id="screenshotLoadingTimeout" class="screenshot-loading-timeout">Stops automatically after 20s if it takes too long.</div>
+    <div class="screenshot-loading-actions">
+      <button id="screenshotLoadingCancelBtn" class="btn cancel-btn" type="button">Hold 1.5s to stop</button>
+    </div>
   </div>
 </div>
 
@@ -392,9 +475,33 @@
     <h3 id="historyModalTitle">History</h3>
     <div id="historyModalSub" class="history-modal-sub"></div>
     <div id="historyModalMeta" class="history-modal-meta"></div>
+    <div id="historySearchWrap" class="history-search-wrap hidden">
+      <input id="historySearchInput" class="history-search-input" type="text" autocomplete="off" placeholder="Search global history, e.g. 2k or 2krat" />
+    </div>
     <div id="historyList" class="history-list"></div>
     <div class="modal-actions">
       <button id="closeHistory" class="btn cancel-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Input Alias Modal -->
+<div id="aliasSettingsBackdrop" class="modal-backdrop hidden">
+  <div class="modal alias-settings-modal" role="dialog" aria-modal="true" aria-labelledby="aliasSettingsTitle">
+    <div id="aliasSettingsKicker" class="alias-settings-kicker">Input aliases</div>
+    <h3 id="aliasSettingsTitle">Input aliases</h3>
+    <div id="aliasSettingsSub" class="alias-settings-sub">Choose which short forms RoGo accepts for every item.</div>
+    <div id="aliasSettingsPreview" class="alias-settings-preview"></div>
+    <div id="aliasSettingsList" class="alias-settings-list"></div>
+    <div id="aliasSettingsError" class="alias-settings-error"></div>
+    <div class="modal-actions alias-settings-actions">
+      <div class="alias-settings-actions-aux">
+        <button id="aliasSettingsReset" class="btn install-btn" type="button">Restore defaults</button>
+      </div>
+      <div class="alias-settings-actions-main">
+        <button id="aliasSettingsCancel" class="btn cancel-btn" type="button">Cancel</button>
+        <button id="aliasSettingsSave" class="btn create-btn" type="button">Save</button>
+      </div>
     </div>
   </div>
 </div>
@@ -435,6 +542,52 @@
     <div id="templatePreviewList" class="template-preview-list"></div>
     <div class="modal-actions">
       <button id="closeTemplatePreview" class="btn cancel-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help Modal -->
+<div id="helpBackdrop" class="modal-backdrop hidden">
+  <div class="modal help-modal" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+    <div class="help-modal-head">
+      <div id="helpModalKicker" class="help-modal-kicker">Help</div>
+      <h3 id="helpModalTitle">Invoer, Tips &amp; Rondleiding</h3>
+      <div id="helpModalSub" class="help-modal-sub"></div>
+    </div>
+    <div id="helpTabBar" class="help-tab-bar">
+      <button class="help-tab active" type="button" data-tab="syntax">Invoer</button>
+      <button class="help-tab" type="button" data-tab="tips">Tips</button>
+      <button class="help-tab" type="button" data-tab="tutorial">Rondleiding</button>
+      <button class="help-tab" type="button" data-tab="rogo">RoGo</button>
+    </div>
+    <div id="helpContent" class="help-content"></div>
+    <div class="modal-actions help-modal-actions">
+      <button id="closeHelpModalBtn" class="btn cancel-btn" type="button">Close</button>
+      <button id="helpPrimaryActionBtn" class="btn create-btn" type="button">Start rondleiding</button>
+    </div>
+  </div>
+</div>
+
+<!-- Guided Tutorial Overlay -->
+<div id="tutorialOverlay" class="tutorial-overlay hidden">
+  <div id="tutorialSpotlight" class="tutorial-spotlight"></div>
+  <div id="tutorialSpotlightSecondary" class="tutorial-spotlight tutorial-spotlight-secondary"></div>
+  <button id="tutorialGuideArrow" class="tutorial-guide-arrow hidden" type="button" aria-label="Show me" title="Show me">
+    <span class="tutorial-guide-arrow-art" aria-hidden="true">
+      <svg viewBox="0 0 64 64" focusable="false">
+        <path d="M12 32h28"></path>
+        <path d="M30 18l16 14-16 14"></path>
+      </svg>
+    </span>
+  </button>
+  <div id="tutorialPanel" class="tutorial-panel">
+    <div id="tutorialStepLabel" class="tutorial-step-label"></div>
+    <h3 id="tutorialStepTitle">Tutorial</h3>
+    <div id="tutorialStepBody" class="tutorial-step-body"></div>
+    <div id="tutorialStepHint" class="tutorial-step-hint"></div>
+    <div class="tutorial-panel-actions">
+      <button id="tutorialRepeatBtn" class="btn install-btn" type="button">Repeat step</button>
+      <button id="tutorialEndBtn" class="btn cancel-btn" type="button">End tutorial</button>
     </div>
   </div>
 </div>

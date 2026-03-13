@@ -127,6 +127,8 @@ function encodeEventRecord(record) {
   encoded.t = TARGET_CODE[record.target === 'retour' ? 'retour' : 'geleverd'];
   encoded.s = STORAGE_CODE[normalizeStorage(record.storage)];
   encoded.d = [];
+  const input = String(record.input || '').trim();
+  if (input) encoded.i = input;
 
   for (const tokenId of TOKEN_ORDER) {
     const value = Number(record?.[tokenId] || 0);
@@ -161,6 +163,7 @@ function decodeEventRecord(record) {
 
   decoded.target = decodeTarget(record.t);
   decoded.storage = decodeStorage(record.s);
+  if (record.i || record.input) decoded.input = String(record.i || record.input || '');
   for (const entry of Array.isArray(record.d) ? record.d : []) {
     const [tokenIndex, rawValue] = entry;
     const tokenId = TOKEN_ORDER[Number(tokenIndex)];

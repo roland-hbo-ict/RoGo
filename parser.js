@@ -1,5 +1,5 @@
 import { addEvent, ensureGroup } from './db.js';
-import { TOKEN_ORDER, getTokenDefs, buildAliasMap } from './tokens.js';
+import { TOKEN_ORDER, getTokenDefs, buildAliasMap, displayKey } from './tokens.js';
 import { emptyTotals, hasAnyTotals, normalizeStorage, sumTotals } from './storage.js';
 
 const FREEZER_SUFFIX_ALIASES = Object.freeze({
@@ -18,11 +18,16 @@ export async function parseAndExecute(input, groupName, mode, storage = 'main', 
   if (!groupName || !mode) throw new Error('Select item and mode');
 
   const parsedInput = parseCommandInput(input, { mode, storage, freezerEnabled });
-  const { totals, amountsByStorage, hasMixedStorage } = parsedInput;
+  const { totals, amountsByStorage, hasMixedStorage, parts } = parsedInput;
 
   const groupId = await ensureGroup(groupName);
   const targetStorage = hasMixedStorage ? 'mixed' : normalizeStorage(storage);
   const target = mode === 'retour' ? 'retour' : 'geleverd';
+  const compactInput = formatCompactCommandInput(parts);
+  const compactInputByStorage = {
+    main: formatCompactCommandInput(parts.filter((part) => part.targetStorage === 'main')),
+    freezer: formatCompactCommandInput(parts.filter((part) => part.targetStorage === 'freezer'))
+  };
 
   if (hasMixedStorage) {
     if (hasAnyTotals(amountsByStorage.main)) {
@@ -31,6 +36,7 @@ export async function parseAndExecute(input, groupName, mode, storage = 'main', 
         groupName,
         target,
         storage: 'main',
+        input: compactInputByStorage.main,
         ...amountsByStorage.main
       });
     }
@@ -40,6 +46,7 @@ export async function parseAndExecute(input, groupName, mode, storage = 'main', 
         groupName,
         target,
         storage: 'freezer',
+        input: compactInputByStorage.freezer,
         ...amountsByStorage.freezer
       });
     }
@@ -49,6 +56,7 @@ export async function parseAndExecute(input, groupName, mode, storage = 'main', 
       groupName,
       target,
       storage: targetStorage,
+      input: compactInput,
       ...totals
     });
   }
@@ -59,7 +67,9 @@ export async function parseAndExecute(input, groupName, mode, storage = 'main', 
     storage: targetStorage,
     amounts: totals,
     amountsByStorage,
-    hasMixedStorage
+    hasMixedStorage,
+    input: compactInput,
+    inputByStorage: compactInputByStorage
   };
 }
 
@@ -79,6 +89,7 @@ export function parseCommandInput(input, { mode, storage = 'main', freezerEnable
     main: emptyTotals(),
     freezer: emptyTotals()
   };
+  const normalizedParts = [];
 
   for (const part of parsedParts) {
     const key = aliasMap[part.alias];
@@ -91,10 +102,11 @@ export function parseCommandInput(input, { mode, storage = 'main', freezerEnable
         : defaultStorage;
 
     amountsByStorage[targetStorage][key] += part.value;
+    normalizedParts.push({ ...part, key, targetStorage });
   }
 
   return {
-    parts: parsedParts,
+    parts: normalizedParts,
     amountsByStorage,
     totals: sumTotals(amountsByStorage.main, amountsByStorage.freezer),
     hasMixedStorage
@@ -127,4 +139,15 @@ export function parsePart(p) {
   }
 
   return null;
+}
+
+function formatCompactCommandInput(parts) {
+  if (!Array.isArray(parts) || !parts.length) return '';
+  const defs = getTokenDefs();
+  return parts
+    .map((part) => {
+      const ref = displayKey(defs, part.key);
+      return `${part.value}${ref}${part.targetStorage === 'freezer' ? 'f' : ''}`;
+    })
+    .join(' ');
 }

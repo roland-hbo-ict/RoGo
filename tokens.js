@@ -49,8 +49,8 @@ export const DEFAULT_TOKENS = {
     value_eur: 100.00,
     defaultRef: 'c',
     userRef: 'c',
-    aliases: ['c', 'ct', 'rc', 'cont', 'container'],
-    keywords: ['rolcontainer', 'container', 'totaalvers']
+    aliases: ['c', 'ct', 'rolcont', 'cont', 'container'],
+    keywords: ['rolcontainer', 'rolcont', 'container', 'totaalvers']
   },
 
   box: {
@@ -93,8 +93,8 @@ export const DEFAULT_TOKENS = {
     value_eur: 4.26,
     defaultRef: 'eps',
     userRef: 'eps',
-    aliases: ['eps', 'donkergroen', 'donker', 'groen', 'dg'],
-    keywords: ['eps', 'klapkrat', 'donkergroen', 'donker', 'groen']
+    aliases: ['eps', 'donkergroen', 'donker', 'dg'],
+    keywords: ['eps', 'klapkrat', 'donkergroen', 'donker']
   },
 
   cbl: {
@@ -104,7 +104,7 @@ export const DEFAULT_TOKENS = {
     value_eur: null,
     defaultRef: 'cbl',
     userRef: 'cbl',
-    aliases: ['cbl'],
+    aliases: ['cbl', 'zwart'],
     keywords: ['cbl', 'zwart', 'krat', 'hoog', 'middel']
   },
 
@@ -116,7 +116,7 @@ export const DEFAULT_TOKENS = {
     defaultRef: 'bl',
     userRef: 'bl',
     aliases: ['bl', 'kb', 'kleinblauw'],
-    keywords: ['klein', 'blauw', 'kleinblauw']
+    keywords: ['krat', 'klein', 'blauw', 'kleinblauw']
   },
 
   europallet: {
@@ -148,8 +148,8 @@ export const DEFAULT_TOKENS = {
     value_eur: 100.00,
     defaultRef: 'cl',
     userRef: 'cl',
-    aliases: ['cl', 'lekkerland', 'lek'],
-    keywords: ['rolcontainer', 'container', 'lekkerland', 'lek']
+    aliases: ['cl', 'lekkerland', 'lek', 'rollek'],
+    keywords: ['rolcontainer', 'container', 'lekkerland', 'lek', 'rollek']
   },
 
   zuurkoolvat: {
@@ -159,7 +159,7 @@ export const DEFAULT_TOKENS = {
     value_eur: 4.00,
     defaultRef: 'zv',
     userRef: 'zv',
-    aliases: ['zv', 'zuurkool', 'vat'],
+    aliases: ['zv', 'zuurkool'],
     keywords: ['zuurkool', 'vat']
   },
 
@@ -236,7 +236,7 @@ export const DEFAULT_TOKENS = {
     value_eur: 30.00,
     defaultRef: 'bv',
     userRef: 'bv',
-    aliases: ['bv', 'biervat', 'vat'],
+    aliases: ['bv', 'biervat'],
     keywords: ['bier', 'vat', 'statiegeld', 'keg']
   },
 
@@ -252,23 +252,83 @@ export const DEFAULT_TOKENS = {
   }
 };
 
+export const TOKEN_OVERRIDES_KEY = 'rogo_token_overrides';
+
+function cloneDefaultTokens() {
+  return structuredClone(DEFAULT_TOKENS);
+}
+
+function readTokenOverrides() {
+  const raw = localStorage.getItem(TOKEN_OVERRIDES_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeTokenOverrides(overrides) {
+  const safe = overrides && typeof overrides === 'object' ? overrides : {};
+  if (!Object.keys(safe).length) {
+    localStorage.removeItem(TOKEN_OVERRIDES_KEY);
+    return;
+  }
+  localStorage.setItem(TOKEN_OVERRIDES_KEY, JSON.stringify(safe));
+}
+
+function buildOrderedAliases(d, id = '') {
+  const rawAliases = [
+    d?.defaultRef,
+    d?.userRef,
+    ...(Array.isArray(d?.aliases) ? d.aliases : [])
+  ];
+  const aliases = [];
+  const seen = new Set();
+  for (const value of rawAliases) {
+    const alias = String(value || '').trim().toLowerCase();
+    if (!alias || seen.has(alias)) continue;
+    seen.add(alias);
+    aliases.push(alias);
+  }
+  if (!aliases.length && id) aliases.push(String(id).trim().toLowerCase());
+  return aliases;
+}
+
 export function getTokenDefs() {
   // Later: move to IndexedDB, per-user profiles, import/export.
   // For now: allow localStorage overrides.
-  const raw = localStorage.getItem('rogo_token_overrides');
-  if (!raw) return structuredClone(DEFAULT_TOKENS);
+  const overrides = readTokenOverrides();
+  const base = cloneDefaultTokens();
 
-  try {
-    const overrides = JSON.parse(raw);
-    const base = structuredClone(DEFAULT_TOKENS);
-
-    for (const id of Object.keys(base)) {
-      if (overrides[id]) base[id] = { ...base[id], ...overrides[id] };
-    }
-    return base;
-  } catch {
-    return structuredClone(DEFAULT_TOKENS);
+  for (const id of Object.keys(base)) {
+    if (overrides[id]) base[id] = { ...base[id], ...overrides[id] };
   }
+  return base;
+}
+
+export function setTokenOverride(id, patch = {}) {
+  const key = String(id || '').trim();
+  if (!key || !DEFAULT_TOKENS[key]) return;
+  const overrides = readTokenOverrides();
+  overrides[key] = {
+    ...(overrides[key] || {}),
+    ...patch
+  };
+  writeTokenOverrides(overrides);
+}
+
+export function clearTokenOverride(id) {
+  const key = String(id || '').trim();
+  if (!key) return;
+  const overrides = readTokenOverrides();
+  delete overrides[key];
+  writeTokenOverrides(overrides);
+}
+
+export function resetTokenOverrides() {
+  localStorage.removeItem(TOKEN_OVERRIDES_KEY);
 }
 
 export function buildAliasMap(defs) {
@@ -276,13 +336,7 @@ export function buildAliasMap(defs) {
   const map = {};
   for (const id of Object.keys(defs)) {
     const d = defs[id];
-    const aliases = new Set([
-      id,
-      d.defaultRef,
-      d.userRef,
-      ...(d.aliases || [])
-    ].filter(Boolean).map(s => String(s).toLowerCase()));
-
+    const aliases = buildOrderedAliases(d, id);
     for (const a of aliases) map[a] = id;
   }
   return map;
@@ -290,7 +344,7 @@ export function buildAliasMap(defs) {
 
 export function displayKey(defs, id) {
   const d = defs[id];
-  return (d?.defaultRef || d?.userRef || id).toLowerCase();
+  return String(d?.defaultRef || d?.userRef || d?.aliases?.[0] || id).toLowerCase();
 }
 
 // --- Suggestion helpers ---
@@ -301,12 +355,7 @@ export function listTokensInOrder(defs) {
 
 export function allAliasesFor(defs, id) {
   const d = defs[id];
-  const set = new Set(
-    [id, d?.defaultRef, d?.userRef, ...(d?.aliases || [])]
-      .filter(Boolean)
-      .map(s => String(s).toLowerCase())
-  );
-  return Array.from(set);
+  return buildOrderedAliases(d, id);
 }
 
 function formatEuroNL(value) {
