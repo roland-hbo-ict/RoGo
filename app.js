@@ -9,7 +9,7 @@ import {
   getHistoryEvents,
   setCurrentProject,
   getCurrentProject,
-  exportProjectSnapshot,
+  exportProjectSnapshotForProject,
   replaceProjectWithSnapshot,
   compactProjectDatabases
 } from './db.js';
@@ -52,6 +52,7 @@ let selectedStorage = 'main';
 
 let modeHintTimer = null;
 let feedbackDismissTimer = null;
+let suppressCmdFeedbackAutoDismiss = false;
 let selectionMode = false;
 let selectedGroupIds = new Set();
 let suppressClickUntil = 0;
@@ -117,6 +118,15 @@ const PROJECT_MENU_ICON_SVG = '<svg class="icon-svg icon-kebab" viewBox="0 0 24 
 const PANEL_SETTINGS_ICON_SVG = '<svg class="icon-svg icon-gear" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83a2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2a2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0a2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2a2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83a2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2a2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0a2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>';
 const PANEL_SETTINGS_CLOSE_ICON_SVG = '<svg class="icon-svg icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6L18 18"/><path d="M18 6L6 18"/></svg>';
 const FREEZER_REMINDER_ICON_SVG = '<svg class="freezer-reminder-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2V22"/><path d="M3.34 7L20.66 17"/><path d="M20.66 7L3.34 17"/><path d="M12 2L10.2 4.2"/><path d="M12 2L13.8 4.2"/><path d="M12 22L10.2 19.8"/><path d="M12 22L13.8 19.8"/><path d="M3.34 7L6.06 7.34"/><path d="M3.34 7L4.7 9.38"/><path d="M20.66 17L17.94 16.66"/><path d="M20.66 17L19.3 14.62"/><path d="M20.66 7L17.94 7.34"/><path d="M20.66 7L19.3 9.38"/><path d="M3.34 17L6.06 16.66"/><path d="M3.34 17L4.7 14.62"/></svg>';
+const TUTORIAL_SCREENSHOT_PREVIEW_SRC = encodeURI('example/bezorgbaas route 4321.jpg');
+const TUTORIAL_SCREENSHOT_PREVIEW_NAMES = [
+  'Fietsdorp',
+  'Kaasstad',
+  'Klompveen',
+  'Tulpenveld',
+  'Haringmeer',
+  'Windmolenwijk'
+];
 
 const I18N = {
   nl: {
@@ -134,7 +144,7 @@ const I18N = {
     currentRoute: 'Huidige route',
     exportRoute: 'Klanten exporteren',
     exportRouteSub: 'Kopieer alle klantregels van deze route naar je klembord.',
-    exportRouteBtn: 'Exporteren',
+    exportRouteBtn: 'Alles kopieren',
     duplicateRoute: 'Route dupliceren',
     duplicateRouteSub: 'Maak een kopie van deze route met klanten en totalen.',
     duplicateRouteBtn: 'Dupliceren',
@@ -318,6 +328,8 @@ const I18N = {
     devViewportSyncSub: 'Herstel viewportposities voor invoerveld en modals',
     devSnowfall: 'Sneeuwval',
     devSnowfallSub: 'Start een kleine vriezer-sneeuwbui over de app',
+    devTutorialFinish: 'Tutorial-afronding',
+    devTutorialFinishSub: 'Speel de volledige tutorial-afrondingsanimatie af op volledig scherm.',
     copiedRouteSnapshot: '✔ Route snapshot gekopieerd',
     copiedRouteText: '✔ Route tekst gekopieerd',
     copiedAppState: '✔ App-status gekopieerd',
@@ -341,6 +353,7 @@ const I18N = {
     delete: 'Verwijderen',
     done: 'Klaar',
     copiedCards: (n) => `✔ ${n} klanten gekopieerd`,
+    tutorialCopiedCardsPractice: (n) => `✔ Alleen geoefend · ${n} klant${n === 1 ? '' : 'en'} niet echt naar je klembord gekopieerd`,
     sharedCards: (n) => `✔ ${n} klanten gedeeld`,
     deletedCards: (n) => `✔ ${n} klanten verwijderd`,
     deleteSelectedConfirm: (n) => `${n} geselecteerde klanten verwijderen?`,
@@ -380,7 +393,7 @@ const I18N = {
     currentRoute: 'Current route',
     exportRoute: 'Export customers',
     exportRouteSub: 'Copy all customer lines from this route to your clipboard.',
-    exportRouteBtn: 'Export',
+    exportRouteBtn: 'Copy all',
     duplicateRoute: 'Duplicate route',
     duplicateRouteSub: 'Create a copy of this route with customers and totals.',
     duplicateRouteBtn: 'Duplicate',
@@ -564,6 +577,8 @@ const I18N = {
     devViewportSyncSub: 'Restore viewport positions for the input bar and modals',
     devSnowfall: 'Snowfall',
     devSnowfallSub: 'Start a small freezer snow flurry across the app',
+    devTutorialFinish: 'Tutorial finish',
+    devTutorialFinishSub: 'Play the full tutorial finish animation in fullscreen.',
     copiedRouteSnapshot: '✔ Route snapshot copied',
     copiedRouteText: '✔ Route text copied',
     copiedAppState: '✔ App state copied',
@@ -587,6 +602,7 @@ const I18N = {
     delete: 'Delete',
     done: 'Done',
     copiedCards: (n) => `✔ Copied ${n} customers`,
+    tutorialCopiedCardsPractice: (n) => `✔ Practice only · ${n} customer${n === 1 ? '' : 's'} not really copied to your clipboard`,
     sharedCards: (n) => `✔ Shared ${n} customers`,
     deletedCards: (n) => `✔ Deleted ${n} customers`,
     deleteSelectedConfirm: (n) => `Delete ${n} selected customers?`,
@@ -616,9 +632,9 @@ const I18N = {
 const HELP_COPY = {
   nl: {
     sectionTitle: 'Help',
-    launchTitle: 'RoGo uitgelegd',
-    launchSub: 'Open waarom RoGo bestaat, invoervoorbeelden en een korte rondleiding',
-    openBtn: 'Open',
+    launchTitle: 'Help',
+    launchSub: 'Open invoerhulp, tips en een korte rondleiding; onderaan lees je ook kort waar RoGo voor bedoeld is.',
+    openBtn: 'Help',
     modalKicker: 'Help',
     modalTitle: 'Invoer, Tips & Rondleiding',
     modalSub: 'Leer sneller hoe RoGo typt, telt en werkt.',
@@ -645,12 +661,12 @@ const HELP_COPY = {
     finishTutorial: 'Klaar',
     tutorialStatus: (current, total) => `Stap ${current} van ${total}`,
     tutorialHeroTitle: 'Loop eerst een veilige oefenroute door',
-    tutorialHeroBody: 'RoGo maakt een tijdelijke oefenroute en laat je stap voor stap zien hoe routes, klantkaarten, Geleverd, Retour, vriezer-invoer, een tweede klant, tijdstempels en opruimen werken. Tussen sommige stappen kijk je eerst even terug naar wat er net is veranderd.',
+    tutorialHeroBody: 'RoGo maakt een tijdelijke oefenroute en laat je stap voor stap zien hoe routes, klantkaarten, Geleverd, Retour, vriezer-invoer, een tweede klant, tijdstempels, screenshot-import, herordenen, daarna multi-select kopiëren en opruimen werken. Tussen sommige stappen kijk je eerst even terug naar wat er net is veranderd.',
     tutorialHeroNote: 'Je echte routes blijven ongemoeid. De oefenroute gebruikt herkenbare voorbeeldregels zoals `2cont 15krat 20k 2rood`, `2k 1r`, `1kv 1c 20k` en `2c 44k 2c 33k 1bl 2bk`.',
     tutorialProgress: (current, total) => `Bezig: stap ${current} van ${total}`,
     tutorialIdle: 'Nog niet gestart',
     tutorialOverviewTitle: 'Zo loopt de rondleiding',
-    tutorialStartCardBody: 'Je oefent route maken, terugzien in de routelijst, het zijpaneel sluiten en later weer openen, een eerste klant toevoegen, Geleverd gebruiken, `Vriezerfunctie` terugvinden in Instellingen, `2k 1r` naar de vriezer-unit sturen, daarna een tweede klant maken met `1kv 1c 20k`, Retour in 1 sterkere regel oefenen, naam wijzigen, tijdstempels en mini-historie tikken, en de route weer opruimen.',
+    tutorialStartCardBody: 'Je oefent route maken, terugzien in de routelijst, het zijpaneel sluiten en later weer openen, een eerste klant toevoegen, Geleverd gebruiken, `Vriezerfunctie` terugvinden in Instellingen, `2k 1r` naar de vriezer-unit sturen, daarna een tweede klant maken met `1kv 1c 20k`, Retour in 1 sterkere regel oefenen, naam wijzigen, tijdstempels en de eerdere regels onderaan de kaart tikken, daarna `Opties uitklappen`, veilig `Importeer uit screenshot` bekijken, de voorbeeldkaarten laten binnenkomen, `Herorden` gebruiken om 1 van je 2 oefenklanten onderaan te zetten, vervolgens een oefenklant samen met minstens 1 extra klant selecteren en hun kopietekst bekijken, en de route weer opruimen.',
     tutorialStepSummaries: [
       {
         title: 'Nieuwe route',
@@ -721,12 +737,28 @@ const HELP_COPY = {
         body: 'Wissel `Laatst gewijzigd` van `... geleden` naar de exacte tijd.'
       },
       {
-        title: 'Mini-historie tikken',
-        body: 'Wissel onder de kaart tussen `Totaal` en `Invoer`.'
+        title: 'Waarden onderaan de kaart tikken',
+        body: 'Wissel onderaan de kaart tussen `Totaal` en `Invoer`.'
       },
       {
         title: 'Zijpaneel openen',
         body: 'Open het zijpaneel later zelf weer met de knop rechtsboven.'
+      },
+      {
+        title: 'Opties uitklappen',
+        body: 'Klap bij `Huidige route` de extra route-acties open.'
+      },
+      {
+        title: 'Herorden',
+        body: 'Open `Herorden` en zet 1 van je 2 oefenklanten helemaal onderaan de lijst.'
+      },
+      {
+        title: 'Multi-select kopiëren',
+        body: 'Houd daarna 1 oefenklant even vast, voeg minstens 1 extra klant toe, en kopieer die gemengde selectie als leesbare tekst.'
+      },
+      {
+        title: 'Plakken bekijken',
+        body: 'Bekijk die kopietekst daarna in een groot leeg veld zodat je rustig kunt zien wat RoGo zou tonen.'
       },
       {
         title: 'Drie puntjes',
@@ -760,10 +792,10 @@ const HELP_COPY = {
     tutorialStepSelectCustomerTitle: 'Selecteer de nieuwe klant',
     tutorialStepSelectCustomerBody: (customerName) => `De kaart van \`${customerName}\` staat nu in de route. Tik 1 keer op die kaart om hem te selecteren.`,
     tutorialStepSelectCustomerHint: 'Na 1 tik schuift de kaart omhoog en vraagt RoGo je om `Geleverd` of `Retour` te kiezen.',
-    tutorialStepModeTitle: 'Kies eerst Geleverd',
+    tutorialStepModeTitle: 'Kies eerst `Geleverd`',
     tutorialStepModeBody: (customerName) => `De kaart van \`${customerName}\` is geselecteerd. Tik op \`Geleverd\` zodat RoGo weet waar de invoer heen moet.`,
     tutorialStepModeHint: 'Pas na het kiezen van Geleverd of Retour wordt het invoerveld actief.',
-    tutorialStepReviewModeTitle: 'Bekijk Geleverd op de kaart',
+    tutorialStepReviewModeTitle: 'Bekijk `Geleverd` op de kaart',
     tutorialStepReviewModeBody: (customerName) => `De kaart van \`${customerName}\` staat nu op \`Geleverd\`. Kijk even hoe die keuze op de kaart zichtbaar blijft.`,
     tutorialStepReviewModeHint: 'Heb je het gezien? Tik op `Verder`.',
     tutorialStepFirstCommandTitle: 'Verstuur je eerste regel',
@@ -778,7 +810,7 @@ const HELP_COPY = {
     tutorialStepReviewSecondCommandTitle: 'Bekijk het nieuwe totaal',
     tutorialStepReviewSecondCommandBody: (customerName) => `De tweede regel is nu boven op de eerste geteld. Op de kaart van \`${customerName}\` zie je daardoor samen 40 kratten, 3 containers en 2 rode kratten.`,
     tutorialStepReviewSecondCommandHint: 'Dit is belangrijk: je typt dus steeds alleen wat je erbij telt, niet opnieuw het hele eindtotaal.',
-    tutorialStepReturnModeTitle: 'Kies nu Retour',
+    tutorialStepReturnModeTitle: 'Kies nu `Retour`',
     tutorialStepReturnModeBody: (customerName) => `De kaart van \`${customerName}\` staat nog op \`Geleverd\`. Tik nu op \`Retour\` zodat je ook de retourkant van dezelfde klant oefent.`,
     tutorialStepReturnModeHint: 'Zo zie je dat Geleverd en Retour apart op dezelfde kaart leven.',
     tutorialStepReturnCommandTitle: 'Verstuur je retourregel in 1 keer',
@@ -787,10 +819,10 @@ const HELP_COPY = {
     tutorialStepReviewReturnCommandTitle: 'Bekijk het retourtotaal',
     tutorialStepReviewReturnCommandBody: (customerName) => `Op de retourkant van \`${customerName}\` zie je nu samen 4 containers, 77 kratten, 1 kleinblauw en 2 bierkratten.`,
     tutorialStepReviewReturnCommandHint: 'Ook bij Retour typ je steeds alleen wat je er nu bij telt.',
-    tutorialStepOpenFreezerPanelTitle: 'Open het zijpaneel voor Vriezerfunctie',
+    tutorialStepOpenFreezerPanelTitle: 'Open het zijpaneel voor `Vriezerfunctie`',
     tutorialStepOpenFreezerPanelBody: 'Gebruik de knop rechtsboven om het zijpaneel te openen. Daar vind je ook Instellingen zoals `Vriezerfunctie` terug.',
     tutorialStepOpenFreezerPanelHint: 'Zo weet je later meteen waar deze instelling zit.',
-    tutorialStepOpenFreezerSettingsTitle: 'Open Instellingen',
+    tutorialStepOpenFreezerSettingsTitle: 'Open `Instellingen`',
     tutorialStepOpenFreezerSettingsBody: 'Tik op het tandwiel rechtsboven in het zijpaneel. Daar zit de schakelaar voor `Vriezerfunctie`.',
     tutorialStepOpenFreezerSettingsHint: 'De vriezer-schakelaar zit dus niet op de klantkaart zelf, maar in Instellingen.',
     tutorialStepEnableFreezerTitle: 'Kijk naar `Vriezerfunctie`',
@@ -803,16 +835,16 @@ const HELP_COPY = {
     tutorialStepCloseFreezerPanelTitle: 'Sluit het zijpaneel weer',
     tutorialStepCloseFreezerPanelBody: 'Tik weer op de donkere ruimte naast het zijpaneel om terug te gaan naar je klantkaart.',
     tutorialStepCloseFreezerPanelHint: 'Zo ga je na Instellingen meteen terug naar je telling.',
-    tutorialStepBackToDeliveredTitle: 'Ga terug naar Geleverd',
+    tutorialStepBackToDeliveredTitle: 'Ga terug naar `Geleverd`',
     tutorialStepBackToDeliveredBody: (customerName) => `De kaart van \`${customerName}\` staat nog op \`Retour\`. Tik nu weer op \`Geleverd\`, want de vriezer-unit hoort bij de geleverde kant.`,
     tutorialStepBackToDeliveredHint: 'De vriezer-split werkt op `Geleverd`, niet op `Retour`.',
     tutorialStepFreezerStorageTitle: 'Kies nu `Vriezer` op de kaart',
     tutorialStepFreezerStorageBody: 'Boven aan de geselecteerde kaart zie je nu `Koelcel` en `Vriezer`. Tik op `Vriezer` zodat de volgende regel daarheen gaat.',
     tutorialStepFreezerStorageHint: 'Zo stuur je iets heel bewust naar de vriezer-unit, zonder aparte klantkaart.',
-    tutorialStepFreezerCommandTitle: 'Sla iets op voor de vriezer-unit',
+    tutorialStepFreezerCommandTitle: 'Sla iets op onder `Vriezer`',
     tutorialStepFreezerCommandBody: 'Oh! Niet de diepvries kratten vergeten. Voor deze klant heb je nog `2k 1r` voor de vriezer-unit. Verstuur hem zodat die apart onder `Vriezer` komt te staan.',
     tutorialStepFreezerCommandHint: 'Je typt hier gewoon normale invoer; omdat `Vriezer` actief is, komt het op de juiste plek terecht.',
-    tutorialStepReviewFreezerCommandTitle: 'Bekijk de aparte vriezer-telling',
+    tutorialStepReviewFreezerCommandTitle: 'Bekijk de aparte telling onder `Vriezer`',
     tutorialStepReviewFreezerCommandBody: (customerName) => `Op de kaart van \`${customerName}\` zie je nu \`Koelcel\` en \`Vriezer\` apart terug. Kijk even hoe \`2k 1r\` los onder \`Vriezer\` staat, terwijl de kleine vriezer-herinnering zichtbaar blijft.`,
     tutorialStepReviewFreezerCommandHint: 'Heb je de aparte vriezer-unit gezien? Tik op `Verder`.',
     tutorialStepSecondCustomerTitle: 'Voeg nog 1 klant toe',
@@ -821,10 +853,10 @@ const HELP_COPY = {
     tutorialStepSelectSecondCustomerTitle: 'Selecteer de tweede klant',
     tutorialStepSelectSecondCustomerBody: (customerName) => `De kaart van \`${customerName}\` staat nu ook in de route. Tik 1 keer op die kaart om hem te selecteren.`,
     tutorialStepSelectSecondCustomerHint: 'Daarna kun je direct weer naar `Geleverd` voor die nieuwe klant.',
-    tutorialStepSecondCustomerModeTitle: 'Kies weer Geleverd',
+    tutorialStepSecondCustomerModeTitle: 'Kies weer `Geleverd`',
     tutorialStepSecondCustomerModeBody: (customerName) => `De kaart van \`${customerName}\` is geselecteerd. Tik op \`Geleverd\` zodat je de hele telling voor deze klant in 1 regel kunt invoeren.`,
     tutorialStepSecondCustomerModeHint: 'Ook bij een nieuwe klant kies je eerst waar de invoer heen moet.',
-    tutorialStepSecondCustomerCommandTitle: 'Stuur koelcel en vriezer in 1 regel',
+    tutorialStepSecondCustomerCommandTitle: 'Stuur `Koelcel` en `Vriezer` in 1 regel',
     tutorialStepSecondCustomerCommandBody: 'Voor deze klant tel je 1 diepvrieskrat, plus de rest van de container als `1c 20k`. Typ daarom in 1 regel `1kv 1c 20k` en verstuur hem op `Geleverd`.',
     tutorialStepSecondCustomerCommandHint: 'Hier laat `1kv` zien dat 1 krat naar `Vriezer` gaat, terwijl `1c 20k` gewoon op `Koelcel` blijft.',
     tutorialStepReviewSecondCustomerCommandTitle: 'Bekijk hoe die 1 regel is gesplitst',
@@ -837,24 +869,96 @@ const HELP_COPY = {
     tutorialStepReviewRenameBody: (renamedName) => `De kaart heet nu \`${renamedName}\`. Kijk even hoe die nieuwe naam direct op dezelfde kaart terugkomt.`,
     tutorialStepReviewRenameHint: 'Heb je hem gezien? Tik op `Verder`.',
     tutorialStepTimestampTitle: 'Tik op `Laatst gewijzigd`',
-    tutorialStepTimestampBody: 'Onder de kaarttitel staat de hele regel `Laatst gewijzigd`. Tik daar 3 keer zodat je ziet hoe de tijd hier en in de mini-historie samen wisselt tussen `... geleden` en de exacte tijd.',
-    tutorialStepTimestampHint: 'Kijk bewust op 2 plekken: boven bij `Laatst gewijzigd` en onder in de mini-historie.',
+    tutorialStepTimestampBody: 'Onder de kaarttitel staat de hele regel `Laatst gewijzigd`. Tik daar 3 keer zodat je ziet hoe de tijd hier en onderaan in het blok met eerdere regels samen wisselt tussen `... geleden` en de exacte tijd.',
+    tutorialStepTimestampHint: 'Kijk bewust op 2 plekken: boven bij `Laatst gewijzigd` en onderaan in het blok met eerdere regels.',
     tutorialStepReviewTimestampTitle: 'Bekijk de tijdwissel op 2 plekken',
     tutorialStepReviewTimestampBody: 'Je hebt net gezien dat dezelfde tijdweergave tegelijk boven en onder wisselt. Kijk nog 1 keer rustig naar beide plekken.',
     tutorialStepReviewTimestampHint: 'Heb je het verschil gezien? Tik op `Verder`.',
-    tutorialStepMiniHistoryTitle: 'Wissel `Totaal` en `Invoer` in mini-historie',
-    tutorialStepMiniHistoryBody: 'Onderaan deze geselecteerde kaart zie je mini-historie met je 2 eerdere invoeren. Tik daar 3 keer op de historiewaarde zodat `Totaal` en `Invoer` voor beide regels wisselen.',
-    tutorialStepMiniHistoryHint: 'Kijk naar de hele mini-historie, niet alleen naar 1 kleine waarde.',
-    tutorialStepReviewMiniHistoryTitle: 'Bekijk mini-historie nog 1 keer',
-    tutorialStepReviewMiniHistoryBody: 'Je 2 eerdere invoeren staan hier samen. Kijk nog 1 keer hoe dezelfde regels tussen `Totaal` en `Invoer` kunnen wisselen.',
+    tutorialStepMiniHistoryTitle: 'Wissel `Totaal` en `Invoer` onderaan de kaart',
+    tutorialStepMiniHistoryBody: 'Onderaan deze geselecteerde kaart zie je 2 eerdere regels. Rechts naast `Geleverd`, `Vriezer` of `Retour` staat per regel een waarde. Tik 3 keer op zo’n waarde zodat beide regels wisselen tussen `Totaal` en `Invoer`.',
+    tutorialStepMiniHistoryHint: 'Kijk naar het hele blok onderaan de kaart, niet alleen naar 1 losse waarde.',
+    tutorialStepReviewMiniHistoryTitle: 'Bekijk die eerdere regels nog 1 keer',
+    tutorialStepReviewMiniHistoryBody: 'Onderaan de kaart zie je nog steeds je 2 eerdere regels. Kijk nog 1 keer hoe de waarden rechts kunnen wisselen tussen `Totaal` en `Invoer`.',
     tutorialStepReviewMiniHistoryHint: 'Heb je beide standen gezien? Tik op `Verder`.',
     tutorialStepFinalReviewTitle: 'Kijk nog 1 keer naar wat je hebt opgebouwd',
-    tutorialStepFinalReviewBody: 'Je hebt nu 2 klanten, Geleverd, Retour, vriezer-invoer, tijdstempels en mini-historie samen op het scherm gezien. Kijk nog 1 keer rustig naar het geheel voordat je de oefenroute weer opruimt.',
+    tutorialStepFinalReviewBody: 'Je hebt nu 2 klanten, Geleverd, Retour, vriezer-invoer, tijdstempels en de eerdere regels onderaan de kaart samen op het scherm gezien. Kijk nog 1 keer rustig naar het geheel, zodat je goed ziet hoeveel RoGo nu al tegelijk vasthoudt op 1 route.',
     tutorialStepFinalReviewHint: 'Heb je een goed beeld van wat RoGo hier allemaal heeft vastgehouden? Tik op `Verder`.',
     tutorialReviewToggleProgress: (remaining, total) => `Nog ${remaining} van ${total} wissels.`,
+    tutorialStepOpenMultiSelectPanelTitle: 'Start multi-select vanaf 1 oefenklant',
+    tutorialStepOpenMultiSelectPanelBody: 'Je bent nu terug op de route. Houd 1 van je 2 oorspronkelijke oefenklanten even ingedrukt totdat multi-select start.',
+    tutorialStepOpenMultiSelectPanelHint: 'Zo spring je direct in de selectiebalk op de kaart zelf, ook nu er inmiddels meer klantkaarten in de route staan.',
+    tutorialStepStartMultiSelectTitle: 'Voeg minstens 1 extra klant toe',
+    tutorialStepStartMultiSelectBody: (secondCustomerName, renamedName) => `Voeg nu ook minstens 1 andere klantkaart toe, bijvoorbeeld 1 van de voorbeeldkaarten uit de screenshot-import. Je selectie moet dus bestaan uit 1 van je oefenklanten zoals \`${secondCustomerName}\` of \`${renamedName}\`, plus minstens 1 extra klant.`,
+    tutorialStepStartMultiSelectHint: 'Zo oefen je niet alleen met je 2 vaste oefenklanten, maar ook met een gemengde selectie uit de echte routeweergave.',
+    tutorialStepReviewSelectedCustomersTitle: 'Controleer je gemengde selectie',
+    tutorialStepReviewSelectedCustomersBody: (secondCustomerName, renamedName) => `Bovenaan zie je nu de multi-selectiebalk. Kijk even of er minstens 1 oefenklant zoals \`${secondCustomerName}\` of \`${renamedName}\` mee geselecteerd is, samen met minstens 1 extra klantkaart uit de route.`,
+    tutorialStepReviewSelectedCustomersHint: 'Zie je de balk bovenaan en een gemengde selectie van oefenklant + extra klant? Tik op `Verder` om daarna te kopiëren.',
+    tutorialStepCopySelectedCustomersTitle: 'Oefen `Kopiëren` veilig',
+    tutorialStepCopySelectedCustomersBody: (secondCustomerName, renamedName) => `Bovenaan staat nu de multi-selectiebalk. Je hebt nu minstens 1 oefenklant zoals \`${secondCustomerName}\` of \`${renamedName}\`, samen met minstens 1 extra klant geselecteerd. Tik op \`Kopiëren\`. Alleen in deze rondleiding raakt RoGo je echte klembord niet aan, dus gebruik even je verbeelding dat dit buiten de rondleiding echt zou kopiëren.`,
+    tutorialStepCopySelectedCustomersHint: 'Je oefent hier alleen de handeling; niets wordt deze keer echt weggeschreven.',
+    tutorialStepPasteCopiedCustomersTitle: 'RoGo opent de oefentekst groot in beeld',
+    tutorialStepPasteCopiedCustomersBody: 'RoGo zet de oefentekst nu zelf in een groot leesveld. Er wordt nog niets geïmporteerd en je echte klembord blijft onaangeraakt; dit is alleen om rustig te bekijken hoe zo’n kopie eruitziet.',
+    tutorialStepPasteCopiedCustomersHint: 'Even geduld: het leesveld wordt direct voor je gevuld.',
+    tutorialStepReviewPastedCustomersTitle: 'Bekijk rustig hoe zo’n kopie eruitziet',
+    tutorialStepReviewPastedCustomersBody: 'De oefentekst staat nu in beeld. Kijk even hoe je geselecteerde klanten als leesbare tekst onder elkaar staan, zodat je weet hoe RoGo dit buiten de rondleiding echt zou tonen na kopiëren.',
+    tutorialStepReviewPastedCustomersHint: 'Heb je het rustig bekeken? Tik op `Verder`.',
     tutorialStepOpenPanelTitle: 'Open het zijpaneel zelf opnieuw',
     tutorialStepOpenPanelBody: 'Gebruik de knop rechtsboven om het zijpaneel weer open te zetten.',
     tutorialStepOpenPanelHint: 'Zo vind je altijd je routes terug.',
+    tutorialStepExpandRouteOptionsTitle: 'Klap `Opties` uit',
+    tutorialStepExpandRouteOptionsBody: 'Onder `Huidige route` zit een knop `Opties uitklappen`. Tik daarop om de extra route-acties open te zetten.',
+    tutorialStepExpandRouteOptionsHint: 'Daar vind je acties zoals importeren, exporteren en `Herorden` voor deze route.',
+    tutorialStepReviewExpandedRouteOptionsTitle: 'Bekijk de uitgeklapte route-acties',
+    tutorialStepReviewExpandedRouteOptionsBody: 'De extra route-acties staan nu open. Kijk heel even rustig naar alles wat hier onder `Huidige route` beschikbaar is, zoals importeren, exporteren, selecteren en `Herorden`.',
+    tutorialStepReviewExpandedRouteOptionsHint: 'Neem de hele lijst even in je op. Tik op `Verder` om daarna een paar van deze kaartjes apart te bekijken.',
+    tutorialStepReviewRouteActionMultiSelectTitle: 'Bekijk `Meerdere klanten selecteren`',
+    tutorialStepReviewRouteActionMultiSelectBody: 'Goed om te weten: vanuit `Huidige route` kun je dezelfde selectiestand ook starten. Later, na `Herorden`, oefen je de snelste manier alsnog direct op de route zelf door 1 klantkaart vast te houden.',
+    tutorialStepReviewRouteActionMultiSelectHint: 'Je hoeft hier niets te tikken. Tik op `Verder` om ook `Klanten exporteren` te bekijken.',
+    tutorialStepReviewRouteActionExportTitle: 'Bekijk `Klanten exporteren`',
+    tutorialStepReviewRouteActionExportBody: 'Vanaf hier kun je buiten de rondleiding de hele route in 1 keer als leesbare tekst kopiëren. We gebruiken dit kaartje nu niet, maar het is goed om te weten dat `Klanten exporteren` hier zit.',
+    tutorialStepReviewRouteActionExportHint: 'Je hoeft hier niets te doen. Tik op `Verder` om daarna ook `Importeer uit screenshot` te bekijken.',
+    tutorialStepReviewRouteActionScreenshotTitle: 'Bekijk `Importeer uit screenshot`',
+    tutorialStepReviewRouteActionScreenshotBody: 'Dit is handig als een Bezorgbaas-route al bestaat en je de klantnamen niet opnieuw wilt overtypen. Later maak je in de Bezorgbaas-app een screenshot die ongeveer lijkt op het voorbeeld dat je zo gaat zien; vanaf hier kan RoGo die namen uitlezen en daar klantkaarten van maken.',
+    tutorialStepReviewRouteActionScreenshotHint: 'Je hoeft hier nog niets te doen. Tik op `Verder` om daarna veilig 1 voorbeeld te bekijken.',
+    tutorialStepOpenScreenshotImportTitle: 'Open veilig `Importeer uit screenshot`',
+    tutorialStepOpenScreenshotImportBody: 'Tik nu op `Importeer` bij `Importeer uit screenshot`. In de rondleiding gebruiken we een veilig voorbeeld van een Bezorgbaas-screenshot, dus er wordt nog niets van je eigen telefoon of route gelezen.',
+    tutorialStepOpenScreenshotImportHint: 'Zie dit als een oefenversie van wat je later met je eigen Bezorgbaas-screenshot kunt doen.',
+    tutorialStepReviewScreenshotImportImageTitle: 'Bekijk het screenshotvoorbeeld',
+    tutorialStepReviewScreenshotImportImageBody: 'Dit is een voorbeeld van een screenshot uit de Bezorgbaas-app die RoGo later voor echt kan uitlezen. Kijk even rustig naar de lijst met stops; als jij dit later gebruikt, maak je eerst zo’n screenshot in Bezorgbaas en daarna laat je RoGo de klantnamen eruit halen.',
+    tutorialStepReviewScreenshotImportImageHint: 'Zie je hoe klantnamen en adressen onder elkaar staan? Tik op `Verder` om RoGo daarna te laten doen alsof hij dit voorbeeld uitleest.',
+    tutorialStepReadScreenshotImportTitle: 'RoGo doet nu alsof hij de screenshot uitleest',
+    tutorialStepReadScreenshotImportBody: 'In het echt maak je eerst in de Bezorgbaas-app een screenshot die ongeveer lijkt op het voorbeeld van net. Voor deze rondleiding doet RoGo nu alleen even alsof dat voorbeeld wordt uitgelezen, zodat je deze tussenstap ook ziet. Zodra dit klaar is, verschijnt `Verder` en kun je zelf door naar de gevonden klantnamen.',
+    tutorialStepReadScreenshotImportHint: 'Even geduld terwijl RoGo dit voorbeeld uitleest. Daarna verschijnt `Verder`.',
+    tutorialStepReviewScreenshotImportResultsTitle: 'Controleer de gevonden klantnamen',
+    tutorialStepReviewScreenshotImportResultsBody: 'Na het uitlezen laat RoGo de gevonden klantnamen eerst zien voordat er kaarten worden aangemaakt. Koppen zoals TotaalVers horen daar niet tussen en worden overgeslagen. Controleer de lijst en tik daarna op Importeer om deze voorbeeldnamen echt als klantkaarten in je oefenroute te zetten.',
+    tutorialStepReviewScreenshotImportResultsHint: 'Neem de lijst even in je op en tik daarna op `Importeer`.',
+    tutorialStepReviewImportedScreenshotCustomersTitle: 'Bekijk de geïmporteerde voorbeeldkaarten',
+    tutorialStepReviewImportedScreenshotCustomersBody: 'De voorbeeldnamen staan nu als gewone klantkaarten in je oefenroute. Scroll er gerust even langs en tik gerust 1 of 2 kaarten aan, zodat je ziet dat een screenshot-import uiteindelijk gewone kaarten oplevert waarmee je verder kunt werken.',
+    tutorialStepReviewImportedScreenshotCustomersHint: 'Kijk even rustig rond op de route. Tik op `Verder` om daarna eerst `Herorden` te oefenen.',
+    tutorialScreenshotPreviewBadge: 'Voorbeeld',
+    tutorialScreenshotPreviewTitle: 'Screenshotvoorbeeld',
+    tutorialScreenshotPreviewSub: 'Zo kan een screenshot uit de Bezorgbaas-app eruitzien voordat RoGo de klantnamen uitleest.',
+    tutorialScreenshotPreviewAlt: 'Voorbeeld van een Bezorgbaas-route screenshot',
+    tutorialScreenshotReadingModalSub: 'Oefenvoorbeeld: RoGo leest nu een Bezorgbaas-screenshot zoals hierboven.',
+    tutorialScreenshotReadingStatusA: 'Screenshot analyseren...',
+    tutorialScreenshotReadingStatusB: 'Klantnamen zoeken...',
+    tutorialScreenshotReadingStatusC: 'Koppen zoals TotaalVers overslaan...',
+    tutorialScreenshotReadingTimeout: 'Oefenversie: hierna kun je de gevonden klantnamen eerst controleren.',
+    tutorialStepOpenReorderTitle: 'Open `Herorden`',
+    tutorialStepOpenReorderBody: 'Tik in deze route-acties op `Herorden` om de klantvolgorde van deze route te wijzigen.',
+    tutorialStepOpenReorderHint: 'Je past hier alleen de volgorde aan, niet de aantallen of historie.',
+    tutorialStepReviewReorderModalTitle: 'Bekijk eerst de herorden-popup',
+    tutorialStepReviewReorderModalBody: 'De herorden-popup staat nu open. Kijk even rustig naar de lijst met klantnamen en de pijltjes omhoog en omlaag, zodat je ziet waar je zo meteen de volgorde wijzigt.',
+    tutorialStepReviewReorderModalHint: 'Zie je de lijst en de pijltjes? Tik op `Verder` om daarna pas echt iets te verplaatsen.',
+    tutorialStepMoveReorderTitle: 'Zet 1 van deze 2 klanten helemaal onderaan',
+    tutorialStepMoveReorderBody: (moveName, anchorName) => `Kies nu of je \`${moveName}\` of \`${anchorName}\` naar beneden wilt zetten. Gebruik bij 1 van deze 2 klanten steeds het pijltje omlaag totdat die helemaal onderaan de lijst staat.`,
+    tutorialStepMoveReorderHint: (moveName, anchorName) => `Je mag dus zelf kiezen welke van \`${moveName}\` of \`${anchorName}\` de laatste rij van de lijst wordt.`,
+    tutorialStepSaveReorderTitle: 'Sla de nieuwe volgorde op',
+    tutorialStepSaveReorderBody: 'De volgorde staat nu goed. Tik op `Klaar` om deze nieuwe routevolgorde op te slaan.',
+    tutorialStepSaveReorderHint: 'Daarna kijk je eerst nog even terug op de route zelf.',
+    tutorialStepReviewReorderedCustomersTitle: 'Bekijk de nieuwe plek op de route',
+    tutorialStepReviewReorderedCustomersBody: (moveName, anchorName) => `Terug op de route zie je nu dat 1 van \`${moveName}\` of \`${anchorName}\` veel lager in de lijst staat. Kijk heel even rustig naar die nieuwe volgorde, zodat je ziet dat \`Herorden\` de klantkaarten echt heeft verplaatst.`,
+    tutorialStepReviewReorderedCustomersHint: 'Zie je dat 1 van deze 2 klanten nu onderaan de lijst is beland? Tik op `Verder` om daarna multi-select met een extra klant te oefenen.',
     tutorialStepOpenRouteMenuTitle: 'Open de drie puntjes bij deze route',
     tutorialStepOpenRouteMenuBody: (projectName) => `Zo zie je dat route-acties ook direct bij \`${projectName}\` in de routelijst zitten. Tik op de drie puntjes naast de routenaam.`,
     tutorialStepOpenRouteMenuHint: 'In dat menu kun je bijvoorbeeld hernoemen, historie openen, opslaan als template of verwijderen.',
@@ -867,27 +971,30 @@ const HELP_COPY = {
     tutorialStepReviewDeleteTitle: 'Controleer dat de oefenroute weg is',
     tutorialStepReviewDeleteBody: (routeName) => `Kijk nog 1 keer in het zijpaneel: \`${routeName}\` hoort nu niet meer tussen je routes te staan. Zo weet je zeker dat opruimen echt is gelukt.`,
     tutorialStepReviewDeleteHint: 'Zie je dat de oefenroute weg is? Tik op `Verder`.',
-    tutorialStepOpenFinalFreezerSettingsTitle: 'Open Instellingen nog 1 keer',
+    tutorialStepOpenFinalFreezerSettingsTitle: 'Open `Instellingen` nog 1 keer',
     tutorialStepOpenFinalFreezerSettingsBody: 'Voordat je afrondt, open nog 1 keer Instellingen. Daar kies je zo meteen hoe `Vriezerfunctie` na de rondleiding blijft staan.',
     tutorialStepOpenFinalFreezerSettingsHint: 'Zo maak je die laatste keuze meteen op de plek waar je hem later ook terugvindt.',
-    tutorialStepFinalFreezerChoiceTitle: 'Kies hoe `Vriezerfunctie` blijft staan',
-    tutorialStepFinalFreezerChoiceBody: (enabled, initialEnabled) => {
-      if (enabled && !initialEnabled) {
-        return '`Vriezerfunctie` staat nu aan door de rondleiding. Laat hem zo staan als dit handig is, of zet hem nu weer uit. Deze keuze blijft na de rondleiding gewoon zo.';
-      }
-      if (enabled && initialEnabled) {
-        return '`Vriezerfunctie` stond al aan en staat nu nog steeds aan. Laat hem zo staan als dit bij jouw werk past, of zet hem nu uit. Deze keuze blijft na de rondleiding gewoon zo.';
-      }
-      if (!enabled && initialEnabled) {
-        return '`Vriezerfunctie` stond eerst aan, maar staat nu uit. Laat hem zo als je hem nu niet nodig hebt, of zet hem weer aan. Deze keuze blijft na de rondleiding gewoon zo.';
-      }
-      return '`Vriezerfunctie` staat nu uit. Laat hem zo als je hem nu niet nodig hebt, of zet hem weer aan. Deze keuze blijft na de rondleiding gewoon zo.';
-    },
-    tutorialStepFinalFreezerChoiceHint: 'Later terugvinden? Open `Instellingen` of zoek in het zijpaneel op `vriezer`.',
+    tutorialStepFinalFreezerChoiceTitle: 'Kies of `Vriezerfunctie` bij jouw ritten past',
+    tutorialStepFinalFreezerChoiceBody: (enabled) => `\`Vriezerfunctie\` staat nu ${enabled ? 'aan' : 'uit'}. Ben je vaak \`C-chauffeur\` of bijrijder in een grote vrachtwagen, dan is het meestal handig om deze functie aan te laten. Rijd je meestal alleen in een \`B-busje\`, dan kun je hem vaak beter uit laten. Kies nu wat het best bij jouw werk past; later vind je deze schakelaar gewoon weer terug in \`Instellingen\`.`,
+    tutorialStepFinalFreezerChoiceHint: 'Twijfel je? Kies wat het best past bij hoe je meestal rijdt. Later kun je dit hier altijd weer aanpassen.',
+    tutorialStepUsefulSettingsTitle: 'Bekijk nog 2 handige instellingen',
+    tutorialStepUsefulSettingsBody: 'Nu je toch in `Instellingen` bent: kijk ook even naar `Help onderaan` en `Alle totalen`. Met `Help onderaan` kun je Help lager in het zijpaneel zetten als je die minder vaak nodig hebt, en `Alle totalen` laat boven de klantenlijst steeds een route-overzicht staan.',
+    tutorialStepUsefulSettingsHint: 'Neem deze 2 even rustig in je op. Tik daarna op `Verder`.',
+    tutorialStepReviewSettingsTitle: 'De rest van `Instellingen` kun je straks zelf verkennen',
+    tutorialStepReviewSettingsBody: 'Hier staan nog meer keuzes die RoGo rustiger of handiger kunnen maken, zoals tekstgrootte, klantweergave, thema en invoer-aliases. Na de rondleiding kun je deze gewoon op je eigen tempo bekijken en aanpassen.',
+    tutorialStepReviewSettingsHint: 'Klaar om af te ronden? Tik op `Verder` en sluit daarna de rondleiding af.',
     tutorialCompleteLabel: 'Afgerond',
     tutorialCompleteTitle: 'Rondleiding afgerond',
-    tutorialCompleteBody: 'Je hebt nu route maken, terugvinden, het zijpaneel sluiten en openen, 2 klanten toevoegen, Geleverd gebruiken, `Vriezerfunctie` terugvinden en gebruiken, gemengde invoer zoals `1kv 1c 20k` zien werken, Retour in 1 regel oefenen, hernoemen, tijdstempels en mini-historie tikken, en route verwijderen via de drie puntjes gezien.',
+    tutorialCompleteBody: 'Je hebt nu route maken, terugvinden, het zijpaneel sluiten en openen, 2 klanten toevoegen, Geleverd gebruiken, `Vriezerfunctie` terugvinden en gebruiken, gemengde invoer zoals `1kv 1c 20k` zien werken, Retour in 1 regel oefenen, hernoemen, tijdstempels en de eerdere regels onderaan de kaart tikken, veilig `Importeer uit screenshot` oefenen van voorbeeld-screenshot tot echte voorbeeldkaarten, klanten herordenen, daarna een oefenklant samen met minstens 1 extra klant selecteren en hun kopietekst bekijken, route verwijderen via de drie puntjes, en nog een paar handige instellingen gezien.',
     tutorialCompleteHint: 'Open Help opnieuw wanneer je invoer, tips of verborgen flows later nog eens wilt bekijken.',
+    tutorialFinishTransitionKicker: '100% afgerond',
+    tutorialFinishTransitionTitle: 'Je bent klaar om echt te tellen',
+    tutorialFinishTransitionBody: 'Routes, klanten, `Geleverd`, `Retour`, `Vriezer`, kopieren en herordenen zitten nu in je vingers.',
+    tutorialFinishTransitionFooter: 'Buiten de rondleiding werkt dit straks gewoon echt. Pak je route en laat je telling landen.',
+    tutorialFinishTransitionFinal: 'Tellen maar',
+    tutorialEarlyDeleteCompleteTitle: 'Hahaha, slim gezien',
+    tutorialEarlyDeleteCompleteBody: 'Je hebt de oefenroute al meteen via de drie puntjes verwijderd. Ja hoor, dat kon inderdaad al. Dat wisten we stiekem al, maar slim gezien wel.',
+    tutorialEarlyDeleteCompleteHint: 'Tik op `Klaar` en `Help > Rondleiding` opent weer, zodat je handmatig opnieuw kunt beginnen.',
     tutorialFreezerChoiceKicker: 'Vriezerfunctie',
     tutorialFreezerChoiceTitle: 'Vriezerfunctie aan laten?',
     tutorialFreezerChoiceBody: 'Tijdens de rondleiding is `Vriezerfunctie` aangezet zodat je `Koelcel` en `Vriezer` kon oefenen. Wil je hem voorlopig aan laten, of nu weer uitzetten?',
@@ -898,6 +1005,7 @@ const HELP_COPY = {
     tutorialFreezerChoiceDisabled: 'Vriezerfunctie weer uitgezet',
     tutorialClosed: 'Rondleiding gesloten',
     tutorialCelebration: '🎉 Rondleiding afgerond',
+    tutorialEarlyDeleteCelebration: '😄 Slim gezien',
     syntaxHeroTitle: 'Lees chips en suggesties alsof RoGo met je meekijkt',
     syntaxHeroBody: 'Belangrijkste regel: typ aantal en soort aan elkaar, dus zonder spatie. Daarna kun je kort of lang typen.',
     syntaxImportantLabel: 'Belangrijk',
@@ -946,9 +1054,9 @@ const HELP_COPY = {
     syntaxLongLineHint: 'Hier worden `15krat`, `20k` en `10k` samen 45 kratten, en `2cont` met `1c` samen 3 containers.',
     syntaxFreezerLabel: 'Vriezer',
     syntaxFreezerTitle: 'Koelcel en vriezer mogen in 1 regel samen',
-    syntaxFreezerBody: 'Staat de vriezerfunctie aan en zit je op `Geleverd`, dan kun je vriezerdelen meteen in dezelfde regel zetten, zoals `10k 2kv`.',
-    syntaxFreezerHint: 'Denk aan `kv` van `vriezer` of `kf` van `freezer`. Beide werken altijd, ongeacht welke taal je in de app gebruikt. RoGo zet dat dan bij `Vriezer`, zonder dat je 2 aparte regels hoeft te maken.',
-    syntaxFreezerHintDisabled: 'Deze invoer werkt pas als `Vriezerfunctie` aanstaat. Daar zie je ook meteen dat `kv` en `kf` allebei gewoon werken, ongeacht de app-taal. Open `Tips` om te zien waar je hem vindt en hoe het eruitziet.',
+    syntaxFreezerBody: 'Staat de vriezerfunctie aan en zit je op `Geleverd`, dan kun je vriezerdelen meteen in dezelfde regel zetten, zoals `10k 2kv`. Zo blijven `Koelcel` en `Vriezer` apart zichtbaar zonder extra hoofdrekenen.',
+    syntaxFreezerHint: 'Gebruik aan het eind `v` of `f` om iets naar `Vriezer` te sturen. In de praktijk plak je dat meestal alleen achter `k` of `r`, zoals `2kv` of `1rv`, omdat kratten en rode kratten daar het vaakst los terechtkomen. `kv` en `kf` werken allebei gewoon, ongeacht de app-taal.',
+    syntaxFreezerHintDisabled: 'Deze invoer werkt pas als `Vriezerfunctie` aanstaat. Gebruik aan het eind `v` of `f` om iets naar `Vriezer` te sturen; in de praktijk doe je dat meestal alleen bij `k` of `r`, zoals `2kv` of `1rv`, omdat kratten en rode kratten daar het vaakst los terechtkomen. `kv` en `kf` werken allebei gewoon, ongeacht de app-taal. Open `Tips` om te zien waar je hem vindt en hoe het eruitziet.',
     syntaxFreezerJump: 'Open Tips over vriezer',
     syntaxPracticeLabel: 'Zelf testen',
     syntaxPracticeTitle: 'Probeer het zelf uit',
@@ -1085,7 +1193,7 @@ const HELP_COPY = {
       {
         badge: 'Tijd',
         title: 'Tik op een tijdstip om te wisselen van `... geleden` naar exacte tijd',
-        body: 'Tijdstempels staan eerst in snelle vorm zoals `... geleden`, zodat je in 1 oogopslag ziet hoe recent iets is. Tik erop als je het exacte moment wilt zien. Dat werkt op `Laatst gewijzigd`, in de mini-historie op de kaart, en ook in de volledige historie.',
+        body: 'Tijdstempels staan eerst in snelle vorm zoals `... geleden`, zodat je in 1 oogopslag ziet hoe recent iets is. Tik erop als je het exacte moment wilt zien. Dat werkt op `Laatst gewijzigd`, in het blok met eerdere regels op de kaart, en ook in de volledige historie.',
         example: '`12m geleden` -> `12-03 08:42`',
         exampleVisual: {
           type: 'time',
@@ -1190,9 +1298,9 @@ const HELP_COPY = {
   },
   en: {
     sectionTitle: 'Help',
-    launchTitle: 'RoGo explained',
-    launchSub: 'Open why RoGo exists, syntax examples, and a short walkthrough',
-    openBtn: 'Open',
+    launchTitle: 'Help',
+    launchSub: 'Open syntax help, tips, and a short walkthrough; at the end you can also read briefly what RoGo is for.',
+    openBtn: 'Help',
     modalKicker: 'Help',
     modalTitle: 'Syntax, Tips & Tutorial',
     modalSub: 'Learn faster how RoGo types, counts, and works.',
@@ -1219,12 +1327,12 @@ const HELP_COPY = {
     finishTutorial: 'Done',
     tutorialStatus: (current, total) => `Step ${current} of ${total}`,
     tutorialHeroTitle: 'Walk through a safe practice route first',
-    tutorialHeroBody: 'RoGo creates a temporary practice route and shows you step by step how routes, customer cards, Delivered, Return, freezer input, a second customer, timestamps, and cleanup work. Between some steps, you first review what just changed.',
+    tutorialHeroBody: 'RoGo creates a temporary practice route and shows you step by step how routes, customer cards, Delivered, Return, freezer input, a second customer, timestamps, screenshot import, reordering, then multi-select copying, and cleanup work. Between some steps, you first review what just changed.',
     tutorialHeroNote: 'Your real routes stay untouched. The practice route uses recognizable example commands like `2cont 15krat 20k 2rood`, `2k 1r`, `1kv 1c 20k`, and `2c 44k 2c 33k 1bl 2bk`.',
     tutorialProgress: (current, total) => `In progress: step ${current} of ${total}`,
     tutorialIdle: 'Not started yet',
     tutorialOverviewTitle: 'How the tutorial flows',
-    tutorialStartCardBody: 'You practice route creation, seeing it in the route list, closing and later reopening the side panel, adding a first customer, using Delivered, finding the `Freezer feature` in Settings, sending `2k 1r` to the freezer unit, then adding a second customer with `1kv 1c 20k`, practicing Return in 1 stronger line, renaming, tapping timestamps and mini-history, and cleaning up again.',
+    tutorialStartCardBody: 'You practice route creation, seeing it in the route list, closing and later reopening the side panel, adding a first customer, using Delivered, finding the `Freezer feature` in Settings, sending `2k 1r` to the freezer unit, then adding a second customer with `1kv 1c 20k`, practicing Return in 1 stronger line, renaming, tapping timestamps and the earlier lines at the bottom of the card, then using `Expand options`, safely reviewing `Import from screenshot`, bringing the example cards into the route, using `Reorder` to move 1 of your 2 practice customers to the bottom, then selecting a practice customer together with at least 1 extra customer and reviewing their copied text, and cleaning up again.',
     tutorialStepSummaries: [
       {
         title: 'New route',
@@ -1295,12 +1403,28 @@ const HELP_COPY = {
         body: 'Switch `Last modified` from `... ago` to the exact time.'
       },
       {
-        title: 'Tap mini-history',
-        body: 'Switch the selected card between `Total` and `Input`.'
+        title: 'Tap values at the bottom of the card',
+        body: 'Switch the selected card between `Total` and `Input` at the bottom of the card.'
       },
       {
         title: 'Open the panel',
         body: 'Open the side panel again yourself with the top-right button.'
+      },
+      {
+        title: 'Expand options',
+        body: 'Expand the extra route actions under `Current route`.'
+      },
+      {
+        title: 'Reorder',
+        body: 'Open `Reorder` and move 1 of your 2 practice customers all the way to the bottom of the list.'
+      },
+      {
+        title: 'Multi-select copy',
+        body: 'Then hold 1 practice customer, add at least 1 extra customer, and copy that mixed selection as readable text.'
+      },
+      {
+        title: 'Review pasted text',
+        body: 'Review that copied text in a large empty field so you can calmly see what RoGo would show.'
       },
       {
         title: 'Three dots',
@@ -1334,10 +1458,10 @@ const HELP_COPY = {
     tutorialStepSelectCustomerTitle: 'Select the new customer',
     tutorialStepSelectCustomerBody: (customerName) => `The card for \`${customerName}\` is now in the route. Tap that card once to select it.`,
     tutorialStepSelectCustomerHint: 'After 1 tap, the card moves up and RoGo asks you to choose `Delivered` or `Return`.',
-    tutorialStepModeTitle: 'Choose Delivered first',
+    tutorialStepModeTitle: 'Choose `Delivered` first',
     tutorialStepModeBody: (customerName) => `The card for \`${customerName}\` is selected. Tap \`Delivered\` so RoGo knows where the input should go.`,
     tutorialStepModeHint: 'The input field only becomes active after you choose Delivered or Return.',
-    tutorialStepReviewModeTitle: 'Review Delivered on the card',
+    tutorialStepReviewModeTitle: 'Review `Delivered` on the card',
     tutorialStepReviewModeBody: (customerName) => `The card for \`${customerName}\` is now on \`Delivered\`. Take a moment to see how that choice stays visible on the card.`,
     tutorialStepReviewModeHint: 'Seen it? Tap `Continue`.',
     tutorialStepFirstCommandTitle: 'Send your first line',
@@ -1352,7 +1476,7 @@ const HELP_COPY = {
     tutorialStepReviewSecondCommandTitle: 'Review the new total',
     tutorialStepReviewSecondCommandBody: (customerName) => `The second line has now been added on top of the first one. On the card for \`${customerName}\`, you now see 40 crates, 3 containers, and 2 red crates together.`,
     tutorialStepReviewSecondCommandHint: 'This matters: you only type what you are adding now, not the whole final total again.',
-    tutorialStepReturnModeTitle: 'Choose Return now',
+    tutorialStepReturnModeTitle: 'Choose `Return` now',
     tutorialStepReturnModeBody: (customerName) => `The card for \`${customerName}\` is still on \`Delivered\`. Tap \`Return\` now so you also practice the return side of the same customer.`,
     tutorialStepReturnModeHint: 'That shows that Delivered and Return live separately on the same card.',
     tutorialStepReturnCommandTitle: 'Send the return line in 1 go',
@@ -1361,10 +1485,10 @@ const HELP_COPY = {
     tutorialStepReviewReturnCommandTitle: 'Review the return total',
     tutorialStepReviewReturnCommandBody: (customerName) => `On the return side of \`${customerName}\`, you now see 4 containers, 77 crates, 1 kleinblauw, and 2 beer crates together.`,
     tutorialStepReviewReturnCommandHint: 'In Return too, you only type what you are adding now.',
-    tutorialStepOpenFreezerPanelTitle: 'Open the side panel for the freezer feature',
+    tutorialStepOpenFreezerPanelTitle: 'Open the side panel for `Freezer feature`',
     tutorialStepOpenFreezerPanelBody: 'Use the top-right button to open the side panel. That is also where you can find Settings like `Freezer feature`.',
     tutorialStepOpenFreezerPanelHint: 'This helps you remember where that setting lives later.',
-    tutorialStepOpenFreezerSettingsTitle: 'Open Settings',
+    tutorialStepOpenFreezerSettingsTitle: 'Open `Settings`',
     tutorialStepOpenFreezerSettingsBody: 'Tap the gear in the top-right of the side panel. The switch for `Freezer feature` lives there.',
     tutorialStepOpenFreezerSettingsHint: 'So the freezer switch is not on the customer card itself, but in Settings.',
     tutorialStepEnableFreezerTitle: 'Look at `Freezer feature`',
@@ -1377,16 +1501,16 @@ const HELP_COPY = {
     tutorialStepCloseFreezerPanelTitle: 'Close the side panel again',
     tutorialStepCloseFreezerPanelBody: 'Tap the dark area next to the side panel again so you return to the customer card.',
     tutorialStepCloseFreezerPanelHint: 'This takes you straight back from Settings into the counting flow.',
-    tutorialStepBackToDeliveredTitle: 'Go back to Delivered',
+    tutorialStepBackToDeliveredTitle: 'Go back to `Delivered`',
     tutorialStepBackToDeliveredBody: (customerName) => `The card for \`${customerName}\` is still on \`Return\`. Tap \`Delivered\` again now, because the freezer unit belongs to the delivered side.`,
     tutorialStepBackToDeliveredHint: 'The freezer split works in `Delivered`, not in `Return`.',
     tutorialStepFreezerStorageTitle: 'Choose `Freezer` on the card now',
     tutorialStepFreezerStorageBody: 'At the top of the selected card, you now see `Cooler` and `Freezer`. Tap `Freezer` so the next line goes there.',
     tutorialStepFreezerStorageHint: 'This is how you send something specifically to the freezer unit without needing a separate customer card.',
-    tutorialStepFreezerCommandTitle: 'Save something for the freezer unit',
+    tutorialStepFreezerCommandTitle: 'Save something under `Freezer`',
     tutorialStepFreezerCommandBody: 'Oh, do not forget the freezer crates. For this customer you still have `2k 1r` for the freezer unit. Send it so that part is stored separately under `Freezer`.',
     tutorialStepFreezerCommandHint: 'You are still typing normal input here; because `Freezer` is active, it lands in the right place.',
-    tutorialStepReviewFreezerCommandTitle: 'Review the separate freezer count',
+    tutorialStepReviewFreezerCommandTitle: 'Review the separate count under `Freezer`',
     tutorialStepReviewFreezerCommandBody: (customerName) => `On the card for \`${customerName}\`, you now see \`Cooler\` and \`Freezer\` separately. Take a moment to see how \`2k 1r\` sits under \`Freezer\`, while the small freezer reminder stays visible too.`,
     tutorialStepReviewFreezerCommandHint: 'Seen the separate freezer unit? Tap `Continue`.',
     tutorialStepSecondCustomerTitle: 'Add 1 more customer',
@@ -1395,10 +1519,10 @@ const HELP_COPY = {
     tutorialStepSelectSecondCustomerTitle: 'Select the second customer',
     tutorialStepSelectSecondCustomerBody: (customerName) => `The card for \`${customerName}\` is now in the route too. Tap that card once to select it.`,
     tutorialStepSelectSecondCustomerHint: 'After that, you can go straight back into `Delivered` for the new customer.',
-    tutorialStepSecondCustomerModeTitle: 'Choose Delivered again',
+    tutorialStepSecondCustomerModeTitle: 'Choose `Delivered` again',
     tutorialStepSecondCustomerModeBody: (customerName) => `The card for \`${customerName}\` is selected. Tap \`Delivered\` so you can enter the full count for this customer in 1 line.`,
     tutorialStepSecondCustomerModeHint: 'Even for a new customer, you first choose where the input should go.',
-    tutorialStepSecondCustomerCommandTitle: 'Send cooler and freezer in 1 line',
+    tutorialStepSecondCustomerCommandTitle: 'Send `Cooler` and `Freezer` in 1 line',
     tutorialStepSecondCustomerCommandBody: 'For this customer, you count 1 freezer crate, plus the rest of the container as `1c 20k`. So type `1kv 1c 20k` in 1 line and send it on `Delivered`.',
     tutorialStepSecondCustomerCommandHint: 'Here `1kv` sends 1 crate to `Freezer`, while `1c 20k` stays on `Cooler`.',
     tutorialStepReviewSecondCustomerCommandTitle: 'Review how that 1 line was split',
@@ -1411,24 +1535,96 @@ const HELP_COPY = {
     tutorialStepReviewRenameBody: (renamedName) => `The card is now called \`${renamedName}\`. Take a moment to notice how the new name appears on the same card right away.`,
     tutorialStepReviewRenameHint: 'Seen it? Tap `Continue`.',
     tutorialStepTimestampTitle: 'Tap `Last modified`',
-    tutorialStepTimestampBody: 'Under the card title, you see the full `Last modified` row. Tap there 3 times so you can see the time switch here and in mini-history together between `... ago` and the exact time.',
-    tutorialStepTimestampHint: 'Look in 2 places on purpose: above at `Last modified` and below in mini-history.',
+    tutorialStepTimestampBody: 'Under the card title, you see the full `Last modified` row. Tap there 3 times so you can see the time switch here and in the block with earlier lines at the bottom of the card together between `... ago` and the exact time.',
+    tutorialStepTimestampHint: 'Look in 2 places on purpose: above at `Last modified` and below in the block with earlier lines.',
     tutorialStepReviewTimestampTitle: 'Review the time switch in 2 places',
     tutorialStepReviewTimestampBody: 'You just saw that the same time display switches above and below at the same time. Take 1 more calm look at both places.',
     tutorialStepReviewTimestampHint: 'Seen the difference? Tap `Continue`.',
-    tutorialStepMiniHistoryTitle: 'Switch `Total` and `Input` in mini-history',
-    tutorialStepMiniHistoryBody: 'At the bottom of this selected card, you see mini-history with your 2 earlier entries. Tap the history value 3 times so `Total` and `Input` switch for both rows.',
-    tutorialStepMiniHistoryHint: 'Look at the whole mini-history block, not only 1 small value.',
-    tutorialStepReviewMiniHistoryTitle: 'Review mini-history once more',
-    tutorialStepReviewMiniHistoryBody: 'Your 2 earlier entries are shown together here. Take 1 more look at how those same rows can switch between `Total` and `Input`.',
+    tutorialStepMiniHistoryTitle: 'Switch `Total` and `Input` at the bottom of the card',
+    tutorialStepMiniHistoryBody: 'At the bottom of this selected card, you can see 2 earlier lines. Next to `Delivered`, `Freezer`, or `Return`, each line shows a value. Tap such a value 3 times so both lines switch between `Total` and `Input`.',
+    tutorialStepMiniHistoryHint: 'Look at the whole block at the bottom of the card, not only 1 small value.',
+    tutorialStepReviewMiniHistoryTitle: 'Review those earlier lines once more',
+    tutorialStepReviewMiniHistoryBody: 'At the bottom of the card, your 2 earlier lines are still visible. Take 1 more look at how the values on the right can switch between `Total` and `Input`.',
     tutorialStepReviewMiniHistoryHint: 'Seen both states? Tap `Continue`.',
     tutorialStepFinalReviewTitle: 'Take 1 last look at what you built',
-    tutorialStepFinalReviewBody: 'You have now seen 2 customers, Delivered, Return, freezer input, timestamps, and mini-history together on the screen. Take 1 calm final look before cleaning up the practice route again.',
+    tutorialStepFinalReviewBody: 'You have now seen 2 customers, Delivered, Return, freezer input, timestamps, and the earlier lines at the bottom of the card together on the screen. Take 1 calm final look so you can see how much RoGo is already keeping track of in 1 route.',
     tutorialStepFinalReviewHint: 'Do you have a clear picture of what RoGo kept track of here? Tap `Continue`.',
     tutorialReviewToggleProgress: (remaining, total) => `${remaining} of ${total} switches left.`,
+    tutorialStepOpenMultiSelectPanelTitle: 'Start multi-select from a practice customer',
+    tutorialStepOpenMultiSelectPanelBody: 'You are back on the route now. Press and hold 1 of your 2 original practice customers until multi-select starts.',
+    tutorialStepOpenMultiSelectPanelHint: 'That jumps straight into the selection bar on the card itself, even now that more customer cards are visible in the route.',
+    tutorialStepStartMultiSelectTitle: 'Add at least 1 extra customer',
+    tutorialStepStartMultiSelectBody: (secondCustomerName, renamedName) => `Now add at least 1 other customer card too, for example 1 of the example cards from the screenshot import. Your selection should contain 1 of your practice customers such as \`${secondCustomerName}\` or \`${renamedName}\`, plus at least 1 extra customer.`,
+    tutorialStepStartMultiSelectHint: 'That way you practice a mixed selection from the real route view, not only the 2 fixed practice cards.',
+    tutorialStepReviewSelectedCustomersTitle: 'Check your mixed selection',
+    tutorialStepReviewSelectedCustomersBody: (secondCustomerName, renamedName) => `The multi-select bar is now visible at the top. Take a moment to check that at least 1 practice customer such as \`${secondCustomerName}\` or \`${renamedName}\` is selected together with at least 1 extra customer card from the route.`,
+    tutorialStepReviewSelectedCustomersHint: 'Do you see the bar at the top and a mixed selection of practice customer + extra customer? Tap `Continue` to copy them next.',
+    tutorialStepCopySelectedCustomersTitle: 'Practice `Copy` safely',
+    tutorialStepCopySelectedCustomersBody: (secondCustomerName, renamedName) => `The multi-select bar is now visible at the top. You now have at least 1 practice customer such as \`${secondCustomerName}\` or \`${renamedName}\`, together with at least 1 extra customer selected. Tap \`Copy\`. Only in this tutorial, RoGo will leave your real clipboard alone, so use your imagination that outside the tutorial this would actually copy the text.`,
+    tutorialStepCopySelectedCustomersHint: 'You are only practicing the action here; nothing is really written out this time.',
+    tutorialStepPasteCopiedCustomersTitle: 'RoGo opens the practice text in a large view',
+    tutorialStepPasteCopiedCustomersBody: 'RoGo now places the practice text into a large reading field by itself. Nothing is imported yet, and your real clipboard stays untouched; this is only so you can calmly review what such a copy looks like.',
+    tutorialStepPasteCopiedCustomersHint: 'Give it a moment: the reading field fills itself right away.',
+    tutorialStepReviewPastedCustomersTitle: 'Review what such a copy looks like',
+    tutorialStepReviewPastedCustomersBody: 'The practice text is now visible. Take a moment to see how your selected customers appear as readable text one after another, so you know how RoGo would really show this after copying outside the tutorial.',
+    tutorialStepReviewPastedCustomersHint: 'Taken a good look? Tap `Continue`.',
     tutorialStepOpenPanelTitle: 'Open the side panel yourself again',
     tutorialStepOpenPanelBody: 'Use the top-right button to open the side panel again.',
     tutorialStepOpenPanelHint: 'That is how you find your routes again.',
+    tutorialStepExpandRouteOptionsTitle: 'Expand `Options`',
+    tutorialStepExpandRouteOptionsBody: 'Under `Current route` there is an `Expand options` button. Tap it to open the extra route actions.',
+    tutorialStepExpandRouteOptionsHint: 'That is where actions like import, export, and `Reorder` live for this route.',
+    tutorialStepReviewExpandedRouteOptionsTitle: 'Review the expanded route actions',
+    tutorialStepReviewExpandedRouteOptionsBody: 'The extra route actions are open now. Take a brief moment to look at everything available here under `Current route`, such as import, export, selection, and `Reorder`.',
+    tutorialStepReviewExpandedRouteOptionsHint: 'Take in the full list for a moment. Tap `Continue` to review a few of these cards one by one next.',
+    tutorialStepReviewRouteActionMultiSelectTitle: 'Review `Select multiple customers`',
+    tutorialStepReviewRouteActionMultiSelectBody: 'Good to know: from `Current route`, you can also start the same selection mode here. Later, after `Reorder`, you will still practice the quickest way directly in the route itself by holding a customer card.',
+    tutorialStepReviewRouteActionMultiSelectHint: 'You do not need to tap anything here. Tap `Continue` to also review `Export customers`.',
+    tutorialStepReviewRouteActionExportTitle: 'Review `Export customers`',
+    tutorialStepReviewRouteActionExportBody: 'From here, outside the tutorial, you can copy the whole route at once as readable text. We are not using this card right now, but it is good to know that `Export customers` lives here.',
+    tutorialStepReviewRouteActionExportHint: 'You do not need to do anything here. Tap `Continue` to also review `Import from screenshot` next.',
+    tutorialStepReviewRouteActionScreenshotTitle: 'Review `Import from screenshot`',
+    tutorialStepReviewRouteActionScreenshotBody: 'This is useful when a Bezorgbaas route already exists and you do not want to retype all customer names by hand. Later, you first take a screenshot in the Bezorgbaas app that roughly looks like the example you are about to see; from here, RoGo can read those names and turn them into customer cards.',
+    tutorialStepReviewRouteActionScreenshotHint: 'You do not need to do anything yet. Tap `Continue` to see a safe example next.',
+    tutorialStepOpenScreenshotImportTitle: 'Open `Import from screenshot` safely',
+    tutorialStepOpenScreenshotImportBody: 'Now tap `Import` on `Import from screenshot`. In the tutorial we use a safe example of a Bezorgbaas screenshot, so nothing from your own phone or route is read yet.',
+    tutorialStepOpenScreenshotImportHint: 'Think of this as a practice version of what you can later do with your own Bezorgbaas screenshot.',
+    tutorialStepReviewScreenshotImportImageTitle: 'Review the screenshot example',
+    tutorialStepReviewScreenshotImportImageBody: 'This is an example of a screenshot from the Bezorgbaas app that RoGo can later read for real. Take a moment to look at the stop list; if you use this later, you first make a screenshot like this in Bezorgbaas and then let RoGo pull the customer names out of it.',
+    tutorialStepReviewScreenshotImportImageHint: 'Do you see how the customer names and addresses line up? Tap `Continue` to let RoGo pretend to read this example next.',
+    tutorialStepReadScreenshotImportTitle: 'RoGo now pretends to read the screenshot',
+    tutorialStepReadScreenshotImportBody: 'In real use, you first take a screenshot in the Bezorgbaas app that roughly looks like the example you just saw. For this tutorial, RoGo now only pretends to read that example so you can see this middle step too. As soon as that finishes, `Continue` appears and you can move on to the found customer names yourself.',
+    tutorialStepReadScreenshotImportHint: 'Give it a moment while RoGo reads this example. After that, `Continue` appears.',
+    tutorialStepReviewScreenshotImportResultsTitle: 'Check the found customer names',
+    tutorialStepReviewScreenshotImportResultsBody: 'After reading a screenshot, RoGo first shows the customer names it found before creating cards. Headers such as TotaalVers do not belong there and are skipped. Check the list, then tap Import to place these example names into your practice route as real customer cards.',
+    tutorialStepReviewScreenshotImportResultsHint: 'Take a moment to review the list, then tap `Import`.',
+    tutorialStepReviewImportedScreenshotCustomersTitle: 'Review the imported example cards',
+    tutorialStepReviewImportedScreenshotCustomersBody: 'The example names are now in your practice route as normal customer cards. Feel free to scroll past them and tap 1 or 2 cards so you can see that a screenshot import eventually becomes regular cards you can keep working with.',
+    tutorialStepReviewImportedScreenshotCustomersHint: 'Look around the route for a moment. Tap `Continue` to practice `Reorder` next.',
+    tutorialScreenshotPreviewBadge: 'Example',
+    tutorialScreenshotPreviewTitle: 'Screenshot example',
+    tutorialScreenshotPreviewSub: 'This is what a screenshot from the Bezorgbaas app can look like before RoGo reads the customer names.',
+    tutorialScreenshotPreviewAlt: 'Example of a Bezorgbaas route screenshot',
+    tutorialScreenshotReadingModalSub: 'Practice example: RoGo is now reading a Bezorgbaas screenshot like the one above.',
+    tutorialScreenshotReadingStatusA: 'Analyzing screenshot...',
+    tutorialScreenshotReadingStatusB: 'Looking for customer names...',
+    tutorialScreenshotReadingStatusC: 'Skipping headers such as TotaalVers...',
+    tutorialScreenshotReadingTimeout: 'Practice version: next you can review the found customer names first.',
+    tutorialStepOpenReorderTitle: 'Open `Reorder`',
+    tutorialStepOpenReorderBody: 'In these route actions, tap `Reorder` to change the customer order for this route.',
+    tutorialStepOpenReorderHint: 'This only changes the order, not the totals or history.',
+    tutorialStepReviewReorderModalTitle: 'Take a moment to view the reorder modal',
+    tutorialStepReviewReorderModalBody: 'The reorder modal is open now. Take a moment to look at the customer list and the up and down arrows, so you can see exactly where the route order gets changed next.',
+    tutorialStepReviewReorderModalHint: 'Do you see the list and the arrows? Tap `Continue` before you start moving anything.',
+    tutorialStepMoveReorderTitle: 'Move 1 of these 2 customers all the way to the bottom',
+    tutorialStepMoveReorderBody: (moveName, anchorName) => `Now choose whether you want to move \`${moveName}\` or \`${anchorName}\` downward. Keep using the down arrow on 1 of these 2 customers until it reaches the very bottom of the list.`,
+    tutorialStepMoveReorderHint: (moveName, anchorName) => `So you may choose for yourself whether \`${moveName}\` or \`${anchorName}\` becomes the last row in the list.`,
+    tutorialStepSaveReorderTitle: 'Save the new order',
+    tutorialStepSaveReorderBody: 'The order is correct now. Tap `Done` to save this new route order.',
+    tutorialStepSaveReorderHint: 'After that, take 1 short look back at the route itself.',
+    tutorialStepReviewReorderedCustomersTitle: 'Review the new order on the route',
+    tutorialStepReviewReorderedCustomersBody: (moveName, anchorName) => `Back on the route, you can now see that 1 of \`${moveName}\` or \`${anchorName}\` sits much lower in the list. Take a moment to look at that new order, so you can see that \`Reorder\` really moved the customer cards.`,
+    tutorialStepReviewReorderedCustomersHint: 'Do you see that 1 of these 2 customers ended up at the bottom of the list? Tap `Continue` to practice multi-select with an extra customer next.',
     tutorialStepOpenRouteMenuTitle: 'Open the three dots next to this route',
     tutorialStepOpenRouteMenuBody: (projectName) => `This shows that route actions also live directly next to \`${projectName}\` in the route list. Tap the three dots next to the route name.`,
     tutorialStepOpenRouteMenuHint: 'That menu can rename, open history, save as template, or delete the route.',
@@ -1441,27 +1637,30 @@ const HELP_COPY = {
     tutorialStepReviewDeleteTitle: 'Check that the practice route is gone',
     tutorialStepReviewDeleteBody: (routeName) => `Look in the side panel 1 more time: \`${routeName}\` should no longer be in your route list. That confirms the cleanup really worked.`,
     tutorialStepReviewDeleteHint: 'Once you have seen that the practice route is gone, tap `Continue`.',
-    tutorialStepOpenFinalFreezerSettingsTitle: 'Open Settings 1 more time',
+    tutorialStepOpenFinalFreezerSettingsTitle: 'Open `Settings` 1 more time',
     tutorialStepOpenFinalFreezerSettingsBody: 'Before you finish, open Settings 1 more time. There you will choose how `Freezer feature` should stay after the tutorial.',
     tutorialStepOpenFinalFreezerSettingsHint: 'That makes the final choice happen in the same place where you will find it later.',
-    tutorialStepFinalFreezerChoiceTitle: 'Choose how `Freezer feature` should stay',
-    tutorialStepFinalFreezerChoiceBody: (enabled, initialEnabled) => {
-      if (enabled && !initialEnabled) {
-        return '`Freezer feature` is now on because of the tutorial. Leave it on if that helps your work, or turn it off again now. This choice will simply stay like this after the tutorial.';
-      }
-      if (enabled && initialEnabled) {
-        return '`Freezer feature` was already on and is still on now. Leave it like this if it fits your work, or turn it off now. This choice will simply stay like this after the tutorial.';
-      }
-      if (!enabled && initialEnabled) {
-        return '`Freezer feature` used to be on, but is off now. Leave it off if you do not need it right now, or turn it back on. This choice will simply stay like this after the tutorial.';
-      }
-      return '`Freezer feature` is off right now. Leave it off if you do not need it, or turn it on. This choice will simply stay like this after the tutorial.';
-    },
-    tutorialStepFinalFreezerChoiceHint: 'Want it later? Open `Settings` or search the side panel for `freezer`.',
+    tutorialStepFinalFreezerChoiceTitle: 'Choose whether `Freezer feature` fits your work',
+    tutorialStepFinalFreezerChoiceBody: (enabled) => `\`Freezer feature\` is currently ${enabled ? 'on' : 'off'}. If you often drive as the main driver on larger truck routes, or are often the helper on a big truck, it usually makes sense to keep this on. If you mostly drive alone in a small van, it is often better to leave it off. Choose what best matches your real work; you can always find this switch again later in \`Settings\`.`,
+    tutorialStepFinalFreezerChoiceHint: 'Not sure yet? Pick what matches your usual vehicle for now. You can always change this here later.',
+    tutorialStepUsefulSettingsTitle: 'Look at 2 more useful settings',
+    tutorialStepUsefulSettingsBody: 'While you are already in `Settings`, also take a moment to look at `Help at bottom` and `All totals`. `Help at bottom` lets you move Help lower in the side panel if you do not need it often, and `All totals` keeps a route summary visible above the customer list.',
+    tutorialStepUsefulSettingsHint: 'Take these 2 in for a moment, then tap `Continue`.',
+    tutorialStepReviewSettingsTitle: 'You can explore the rest of `Settings` yourself after this',
+    tutorialStepReviewSettingsBody: 'There are more choices here that can make RoGo calmer or more useful for you, like text size, customer layout, theme, and input aliases. After the tutorial, you can look through these at your own pace and adjust what fits.',
+    tutorialStepReviewSettingsHint: 'Ready to wrap up? Tap `Continue` and then finish the tutorial.',
     tutorialCompleteLabel: 'Finished',
     tutorialCompleteTitle: 'Tutorial finished',
-    tutorialCompleteBody: 'You have now seen route creation, finding it again, closing and opening the side panel, adding 2 customers, using Delivered, finding and using the `Freezer feature`, seeing mixed input like `1kv 1c 20k` work, practicing Return in 1 line, renaming, tapping timestamps and mini-history, and deleting a route through the three-dot menu.',
+    tutorialCompleteBody: 'You have now seen route creation, finding it again, closing and opening the side panel, adding 2 customers, using Delivered, finding and using the `Freezer feature`, seeing mixed input like `1kv 1c 20k` work, practicing Return in 1 line, renaming, tapping timestamps and the earlier lines at the bottom of the card, safely practicing `Import from screenshot` from example screenshot to real example cards, reordering customers, then selecting a practice customer together with at least 1 extra customer and reviewing their copied text, deleting a route through the three-dot menu, and a few useful settings at the end.',
     tutorialCompleteHint: 'Open Help again whenever you want to revisit input, tips, or less obvious flows.',
+    tutorialFinishTransitionKicker: '100% complete',
+    tutorialFinishTransitionTitle: 'You are ready to count for real',
+    tutorialFinishTransitionBody: 'Routes, customers, `Delivered`, `Return`, `Freezer`, copying, and reordering are now in your hands.',
+    tutorialFinishTransitionFooter: 'Outside the tutorial this all works for real. Grab your route and let the count land.',
+    tutorialFinishTransitionFinal: "Let's count",
+    tutorialEarlyDeleteCompleteTitle: 'Haha, clever catch',
+    tutorialEarlyDeleteCompleteBody: 'You already deleted the practice route right away through the three dots. Yep, that was possible already. We kind of knew that, but that was clever.',
+    tutorialEarlyDeleteCompleteHint: 'Tap `Done` and `Help > Tutorial` will open again so you can start over manually.',
     tutorialFreezerChoiceKicker: 'Freezer feature',
     tutorialFreezerChoiceTitle: 'Keep the freezer feature on?',
     tutorialFreezerChoiceBody: 'During the tutorial, `Freezer feature` was turned on so you could practice `Cooler` and `Freezer`. Do you want to keep it on for now, or turn it off again?',
@@ -1472,6 +1671,7 @@ const HELP_COPY = {
     tutorialFreezerChoiceDisabled: 'Freezer feature turned off again',
     tutorialClosed: 'Tutorial closed',
     tutorialCelebration: '🎉 Tutorial finished',
+    tutorialEarlyDeleteCelebration: '😄 Clever catch',
     syntaxHeroTitle: 'Read chips and suggestions like RoGo is thinking with you',
     syntaxHeroBody: 'Most important rule: type the number and item together, without a space. After that, you can type short or long forms.',
     syntaxImportantLabel: 'Important',
@@ -1520,9 +1720,9 @@ const HELP_COPY = {
     syntaxLongLineHint: 'Here, `15krat`, `20k`, and `10k` become 45 crates together, and `2cont` with `1c` becomes 3 containers.',
     syntaxFreezerLabel: 'Freezer',
     syntaxFreezerTitle: 'Cooler and freezer can stay in 1 line together',
-    syntaxFreezerBody: 'If the freezer feature is on and you are in `Delivered`, you can put freezer parts in the same line right away, like `10k 2kf`.',
-    syntaxFreezerHint: 'Think of `kf` from `freezer` or `kv` from `vriezer`. Both always work, no matter which app language you use. RoGo then puts that part under `Freezer` without needing 2 separate lines.',
-    syntaxFreezerHintDisabled: 'This input only works once `Freezer feature` is enabled. There you will also see that both `kf` and `kv` work regardless of the app language. Open `Tips` to see where to find it and what it looks like.',
+    syntaxFreezerBody: 'If the freezer feature is on and you are in `Delivered`, you can put freezer parts in the same line right away, like `10k 2kv`. That keeps `Cooler` and `Freezer` clearly separate without extra mental math.',
+    syntaxFreezerHint: 'Use `v` or `f` at the end to send something to `Freezer`. In practice you usually only add that to `k` or `r`, like `2kv` or `1rv`, because crates and red crates are the items most often kept separate there. `kv` and `kf` both work regardless of the app language.',
+    syntaxFreezerHintDisabled: 'This input only works once `Freezer feature` is enabled. Use `v` or `f` at the end to send something to `Freezer`; in practice that is usually only used with `k` or `r`, like `2kv` or `1rv`, because crates and red crates are the items most often kept separate there. `kv` and `kf` both work regardless of the app language. Open `Tips` to see where to find it and what it looks like.',
     syntaxFreezerJump: 'Open Tips about freezer',
     syntaxPracticeLabel: 'Try it',
     syntaxPracticeTitle: 'Try it yourself',
@@ -1659,7 +1859,7 @@ const HELP_COPY = {
       {
         badge: 'Time',
         title: 'Tap a timestamp to switch from `... ago` to the exact time',
-        body: 'Timestamps first appear in a quick form like `... ago`, so you can instantly see how recent something is. Tap one if you want the exact time instead. That works on `Last modified`, in mini-history on the card, and in full history too.',
+        body: 'Timestamps first appear in a quick form like `... ago`, so you can instantly see how recent something is. Tap one if you want the exact time instead. That works on `Last modified`, in the block with earlier lines on the card, and in full history too.',
         example: '`12m ago` -> `03-12 08:42`',
         exampleVisual: {
           type: 'time',
@@ -1764,15 +1964,10 @@ const HELP_COPY = {
   }
 };
 
-const HELP_TUTORIAL_STEP_COUNT = 40;
+const HELP_TUTORIAL_STEP_COUNT = 63;
 const HELP_TUTORIAL_REVIEW_TOGGLE_COUNT = 3;
 const HELP_TUTORIAL_GUIDE_MIN_HIDDEN_PX = 18;
 const HELP_TUTORIAL_GUIDE_VISIBLE_RATIO_THRESHOLD = 0.96;
-const HELP_TUTORIAL_FIRST_COMMAND = '5krat 1cont';
-const HELP_TUTORIAL_SECOND_COMMAND = '2cont 15krat 20k 2rood';
-const HELP_TUTORIAL_SECOND_CUSTOMER_COMMAND = '1kv 1c 20k';
-const HELP_TUTORIAL_RETURN_COMMAND = '2c 44k 2c 33k 1bl 2bk';
-const HELP_TUTORIAL_FREEZER_COMMAND = '2k 1r';
 const HELP_TABS = ['syntax', 'tips', 'tutorial', 'rogo'];
 const HELP_TAB_CTA_SCROLL_THRESHOLD = 0.9;
 const TUTORIAL_MANUAL_CONTINUE_STEP_IDS = new Set([
@@ -1787,8 +1982,34 @@ const TUTORIAL_MANUAL_CONTINUE_STEP_IDS = new Set([
   'review-card-timestamp',
   'review-mini-history',
   'review-before-delete',
+  'review-both-selected-customers',
+  'review-pasted-customers',
+  'review-expanded-route-options',
+  'review-route-action-multi-select',
+  'review-route-action-export',
+  'review-route-action-screenshot',
+  'review-screenshot-import-example',
+  'review-imported-screenshot-customers',
+  'review-reorder-modal',
+  'review-reordered-customers',
   'review-route-deleted',
-  'final-freezer-choice'
+  'final-freezer-choice',
+  'review-useful-settings',
+  'review-settings-overview'
+]);
+const TUTORIAL_CLIPBOARD_REVIEW_STEP_IDS = new Set([
+  'paste-copied-customers',
+  'review-pasted-customers'
+]);
+const TUTORIAL_MULTI_SELECT_START_STEP_IDS = new Set([
+  'start-multi-select-from-card'
+]);
+const TUTORIAL_CLI_COMMAND_STEP_IDS = new Set([
+  'first-command',
+  'second-command',
+  'freezer-command',
+  'second-customer-command',
+  'return-command'
 ]);
 
 let deferredInstallPrompt = null;
@@ -2772,14 +2993,20 @@ function updateSelectionBarUI() {
   const copyBtn = document.getElementById('selCopy');
   const shareBtn = document.getElementById('selShare');
   const delBtn = document.getElementById('selDelete');
+  const cancelBtn = document.getElementById('selCancel');
 
   if (bar) bar.classList.toggle('hidden', !selectionMode);
 
   const count = selectedGroupIds.size;
+  const copyAllowed = isTutorialSelectionBarActionAllowed('copy');
+  const shareAllowed = isTutorialSelectionBarActionAllowed('share');
+  const deleteAllowed = isTutorialSelectionBarActionAllowed('delete');
+  const cancelAllowed = isTutorialSelectionBarActionAllowed('cancel');
   if (countEl) countEl.textContent = t('selectedCount', count);
-  if (copyBtn) copyBtn.disabled = count === 0;
-  if (shareBtn) shareBtn.disabled = count === 0;
-  if (delBtn) delBtn.disabled = count === 0;
+  if (copyBtn) copyBtn.disabled = count === 0 || !copyAllowed;
+  if (shareBtn) shareBtn.disabled = count === 0 || !shareAllowed;
+  if (delBtn) delBtn.disabled = count === 0 || !deleteAllowed;
+  if (cancelBtn) cancelBtn.disabled = !cancelAllowed;
 }
 
 function exitSelectionMode() {
@@ -2813,17 +3040,17 @@ function normalizeTextKey(s) {
   return String(s || '').trim().toLowerCase();
 }
 
-function buildTotalsTextLines(totals, defs = getTokenDefs()) {
+function buildTotalsTextLines(totals, defs = getTokenDefs(), { includeRef = true } = {}) {
   return TOKEN_ORDER
     .map((k) => ({ name: tokenNameNL(defs, k), v: Number(totals?.[k] || 0), ref: displayKey(defs, k) }))
     .filter((x) => x.v !== 0)
-    .map((x) => `${x.name} ${x.v} ${x.ref}`);
+    .map((x) => includeRef ? `${x.name} ${x.v} ${x.ref}` : `${x.name} = ${x.v}`);
 }
 
 function buildModeExportText(storageTotals, defs = getTokenDefs()) {
-  const mainLines = buildTotalsTextLines(storageTotals?.main, defs);
-  const freezerLines = buildTotalsTextLines(storageTotals?.freezer, defs);
-  return `${t('mainUnit')}:\n${mainLines.join('\n') || '-'}\n\n${t('freezer')}:\n${freezerLines.join('\n') || '-'}`;
+  const deliveredTotals = sumTotals(storageTotals?.main, storageTotals?.freezer);
+  const lines = buildTotalsTextLines(deliveredTotals, defs, { includeRef: false });
+  return lines.join('\n') || '-';
 }
 
 function buildCardExportText(group) {
@@ -2831,10 +3058,10 @@ function buildCardExportText(group) {
   return `${group.name} - ${t('delivered')}:\n${buildModeExportText({
     main: group?.storage?.main?.geleverd,
     freezer: group?.storage?.freezer?.geleverd
-  }, defs)}\n\n${t('returned')}:\n${buildTotalsTextLines(group?.retour, defs).join('\n') || '-'}`;
+  }, defs)}\n\n${t('returned')}:\n${buildTotalsTextLines(group?.retour, defs, { includeRef: false }).join('\n') || '-'}`;
 }
 
-function parseImportSection(sectionText, defs, aliasMap) {
+function parseImportSection(sectionText, defs) {
   const out = Object.fromEntries(TOKEN_ORDER.map(k => [k, 0]));
   const byName = new Map(
     TOKEN_ORDER.map(id => [normalizeTextKey(defs?.[id]?.name_nl || id), id])
@@ -2847,65 +3074,20 @@ function parseImportSection(sectionText, defs, aliasMap) {
     .filter(l => l !== '-');
 
   for (const line of lines) {
-    let fullName = '';
-    let qty = 0;
-    let ref = '';
-
-    const full = line.match(/^(.*\S)\s+(-?\d+)\s+([a-zA-Z_]+)$/);
-    if (full) {
-      fullName = normalizeTextKey(full[1]);
-      qty = Number(full[2]);
-      ref = String(full[3] || '').toLowerCase();
-    } else {
-      // Backward/alternate format: "<qty> <ref>"
-      const compact = line.match(/^(-?\d+)\s+([a-zA-Z_]+)$/);
-      if (!compact) continue;
-      qty = Number(compact[1]);
-      ref = String(compact[2] || '').toLowerCase();
-    }
-
-    let id = fullName ? byName.get(fullName) : undefined;
-    if (!id && aliasMap[ref]) id = aliasMap[ref];
-    if (!id) continue;
-
+    const namedEquals = line.match(/^(.*\S)\s*=\s*(-?\d+)\s*$/);
+    if (!namedEquals) return null;
+    const fullName = normalizeTextKey(namedEquals[1]);
+    const qty = Number(namedEquals[2]);
+    const id = byName.get(fullName);
+    if (!id) return null;
     out[id] += qty;
   }
 
   return out;
 }
 
-function parseImportModeSection(sectionText, defs, aliasMap) {
-  const storageLines = {
-    main: [],
-    freezer: []
-  };
-
-  let activeStorage = 'main';
-  for (const rawLine of String(sectionText || '').split('\n')) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
-    if (/^(?:Hoofdunit|Koelcel|Main unit|Cooler)\s*:\s*$/i.test(line)) {
-      activeStorage = 'main';
-      continue;
-    }
-    if (/^(?:Freezer)\s*:\s*$/i.test(line)) {
-      activeStorage = 'freezer';
-      continue;
-    }
-
-    storageLines[activeStorage].push(line);
-  }
-
-  return {
-    main: parseImportSection(storageLines.main.join('\n'), defs, aliasMap),
-    freezer: parseImportSection(storageLines.freezer.join('\n'), defs, aliasMap)
-  };
-}
-
 function parseImportCardsText(inputText) {
   const defs = getTokenDefs();
-  const aliasMap = buildAliasMap(defs);
   const chunks = String(inputText || '')
     .split(/\n\s*___\s*\n/g)
     .map(c => c.trim())
@@ -2919,18 +3101,19 @@ function parseImportCardsText(inputText) {
     const name = String(m[1] || '').trim();
     if (!name) continue;
 
-    const geleverd = parseImportModeSection(m[2], defs, aliasMap);
-    const retour = parseImportSection(m[3], defs, aliasMap);
+    const geleverd = parseImportSection(m[2], defs);
+    const retour = parseImportSection(m[3], defs);
+    if (!geleverd || !retour) continue;
 
     cards.push({
       name,
       storage: {
         main: {
-          geleverd: geleverd.main,
+          geleverd,
           retour
         },
         freezer: {
-          geleverd: geleverd.freezer,
+          geleverd: emptyTotals(),
           retour: emptyTotals()
         }
       }
@@ -3054,6 +3237,113 @@ function openScreenshotLoadingModal() {
 
 function closeScreenshotLoadingModal() {
   screenshotLoadingBackdrop?.classList.add('hidden');
+}
+
+function openTutorialScreenshotPreview() {
+  const copy = getHelpCopy();
+  if (tutorialScreenshotPreviewBadge) tutorialScreenshotPreviewBadge.textContent = copy.tutorialScreenshotPreviewBadge || 'Example';
+  if (tutorialScreenshotPreviewTitle) tutorialScreenshotPreviewTitle.textContent = copy.tutorialScreenshotPreviewTitle || 'Screenshot example';
+  if (tutorialScreenshotPreviewSub) tutorialScreenshotPreviewSub.textContent = copy.tutorialScreenshotPreviewSub || '';
+  if (tutorialScreenshotPreviewImg) {
+    tutorialScreenshotPreviewImg.src = TUTORIAL_SCREENSHOT_PREVIEW_SRC;
+    tutorialScreenshotPreviewImg.alt = copy.tutorialScreenshotPreviewAlt || 'Screenshot example';
+  }
+  tutorialScreenshotPreviewBackdrop?.classList.remove('hidden');
+}
+
+function closeTutorialScreenshotPreview() {
+  tutorialScreenshotPreviewBackdrop?.classList.add('hidden');
+}
+
+function openTutorialScreenshotReadingModal() {
+  const copy = getHelpCopy();
+  const actions = screenshotLoadingCancelBtn?.closest('.screenshot-loading-actions');
+  if (screenshotLoadingTitle) screenshotLoadingTitle.textContent = t('importScreenshot');
+  if (screenshotLoadingSub) screenshotLoadingSub.textContent = copy.tutorialScreenshotReadingModalSub || '';
+  if (screenshotLoadingStatus) screenshotLoadingStatus.textContent = copy.tutorialScreenshotReadingStatusA || '';
+  if (screenshotLoadingTimeout) {
+    screenshotLoadingTimeout.textContent = copy.tutorialScreenshotReadingTimeout || '';
+    screenshotLoadingTimeout.style.display = screenshotLoadingTimeout.textContent ? '' : 'none';
+  }
+  if (actions) actions.style.display = 'none';
+  screenshotLoadingBackdrop?.classList.remove('hidden');
+}
+
+function setTutorialScreenshotReadingModalStatus(statusText = '') {
+  if (screenshotLoadingStatus) screenshotLoadingStatus.textContent = String(statusText || '');
+}
+
+function closeTutorialScreenshotReadingModal() {
+  const actions = screenshotLoadingCancelBtn?.closest('.screenshot-loading-actions');
+  if (actions) actions.style.removeProperty('display');
+  if (screenshotLoadingTimeout) {
+    screenshotLoadingTimeout.style.removeProperty('display');
+    const seconds = activeScreenshotImportSession
+      ? getScreenshotImportRemainingSeconds(activeScreenshotImportSession)
+      : Math.ceil(getScreenshotImportTimeoutMs(1) / 1000);
+    screenshotLoadingTimeout.textContent = t('screenshotImportTimeoutHint', seconds);
+  }
+  if (screenshotLoadingTitle) screenshotLoadingTitle.textContent = t('importScreenshot');
+  if (screenshotLoadingSub) screenshotLoadingSub.textContent = t('screenshotImportPleaseWait');
+  if (screenshotLoadingStatus) screenshotLoadingStatus.textContent = t('screenshotImportLoadingEngine');
+  closeScreenshotLoadingModal();
+}
+
+function closeTutorialScreenshotImportDemoUi() {
+  closeTutorialScreenshotPreview();
+  closeTutorialScreenshotReadingModal();
+  closeTutorialScreenshotImportResultsDialog();
+}
+
+function showTutorialScreenshotImportResultsDialog() {
+  return showActionDialog({
+    variant: 'review',
+    kicker: t('importScreenshot'),
+    title: t('screenshotReviewTitle'),
+    subtitle: t('screenshotReviewSub', TUTORIAL_SCREENSHOT_PREVIEW_NAMES.length, 0),
+    body: getHelpCopy().tutorialStepReviewScreenshotImportResultsBody,
+    details: buildScreenshotImportPreviewItems(TUTORIAL_SCREENSHOT_PREVIEW_NAMES),
+    showCancel: false,
+    confirmTone: 'create',
+    confirmLabel: t('import'),
+    allowDismiss: false
+  });
+}
+
+function closeTutorialScreenshotImportResultsDialog() {
+  if (actionDialogBackdrop?.classList.contains('hidden')) return;
+  resolveActionDialog(false);
+}
+
+async function importTutorialScreenshotPreviewNamesIntoRoute() {
+  const existingGroups = await getGroupsWithTotals();
+  const knownNames = new Set(existingGroups.map((group) => normalizeTextKey(group.name)));
+  const baseOrder = getStoredGroupOrder();
+  const nextOrder = [...baseOrder];
+  const orderIds = new Set(baseOrder.map((id) => Number(id)));
+  const importedNames = [];
+  let createdCount = 0;
+
+  for (const name of TUTORIAL_SCREENSHOT_PREVIEW_NAMES) {
+    const normalizedName = normalizeTextKey(name);
+    if (!normalizedName || SCREENSHOT_IMPORT_IGNORED_NAME_KEYS.has(normalizedName)) continue;
+    importedNames.push(name);
+    if (knownNames.has(normalizedName)) continue;
+    const groupId = Number(await ensureGroup(name));
+    knownNames.add(normalizedName);
+    createdCount += 1;
+    if (Number.isFinite(groupId) && !orderIds.has(groupId)) {
+      nextOrder.push(groupId);
+      orderIds.add(groupId);
+    }
+  }
+
+  if (nextOrder.length !== baseOrder.length) setStoredGroupOrder(nextOrder);
+  await load();
+  return {
+    createdCount,
+    importedNames
+  };
 }
 
 function getScreenshotImportRemainingSeconds(session) {
@@ -3456,7 +3746,7 @@ function isScreenshotUiLine(text) {
   if (!value) return true;
   if (/^\d+(?:[.,]\d+)?\s*(?:km|min|m)$/.test(value)) return true;
 
-  return [
+  const steps = [
     'rit',
     'route',
     'bezorging',
@@ -3836,6 +4126,12 @@ function clearFeedbackSoon(ms = 700) {
     if (feedback?.textContent?.trim().startsWith('⚠')) return;
     if (feedback) feedback.textContent = '';
   }, ms);
+}
+
+function clearFeedbackForSelectionChange() {
+  const currentFeedback = String(feedback?.textContent || '').trim();
+  if (tutorialState.active && currentFeedback && !currentFeedback.startsWith('⚠')) return;
+  if (feedback) feedback.textContent = '';
 }
 
 function setCmdScrollLock(locked) {
@@ -4811,7 +5107,7 @@ list.addEventListener('blur', async (e) => {
   const el = e.target;
   if (el?.id === 'newGroupInput') {
     const stepId = getCurrentTutorialStep()?.id;
-    const isTutorialCreateCustomerStep = stepId === 'create-customer' || stepId === 'create-second-customer';
+    const isTutorialCreateCustomerStep = isTutorialNewGroupCreationStep(stepId);
     if (isTutorialCreateCustomerStep && String(el.value || '').trim()) {
       await submitNewGroupInput(el);
       return;
@@ -4863,8 +5159,25 @@ list.addEventListener('click', e => {
     return;
   }
 
+  const currentTutorialStepId = getCurrentTutorialStep()?.id;
+  const focusedTitleEditor =
+    document.activeElement instanceof HTMLTextAreaElement &&
+    document.activeElement.classList?.contains('group-title-input')
+      ? document.activeElement
+      : null;
+  if (
+    currentTutorialStepId === 'rename-customer' &&
+    focusedTitleEditor &&
+    !e.target.closest('textarea.group-title-input')
+  ) {
+    e.preventDefault();
+    focusedTitleEditor.blur();
+    return;
+  }
+
   if (Date.now() < suppressClickUntil) {
     e.preventDefault();
+    e.stopPropagation();
     return;
   }
 
@@ -4884,6 +5197,14 @@ list.addEventListener('click', e => {
   if (selectionMode && clickedCard && !clickedCard.classList.contains('new-group')) {
     const cardId = Number(clickedCard.dataset.id);
     if (!Number.isFinite(cardId)) return;
+    if (
+      tutorialState.active &&
+      currentTutorialStepId === 'select-second-customer-for-copy' &&
+      selectedGroupIds.size === 1 &&
+      selectedGroupIds.has(cardId)
+    ) {
+      return;
+    }
     if (selectedGroupIds.has(cardId)) selectedGroupIds.delete(cardId);
     else selectedGroupIds.add(cardId);
     if (selectedGroupIds.size === 0) {
@@ -4891,7 +5212,15 @@ list.addEventListener('click', e => {
     } else {
       updateSelectionBarUI();
     }
-    load();
+    const selectedGroupNames = getSelectedGroupNames();
+    load().then(() => {
+      void notifyTutorialProgress('selection-updated', {
+        projectId: getCurrentProject(),
+        groupName: String(clickedCard.dataset.name || ''),
+        selectedGroupNames,
+        count: selectedGroupNames.length
+      });
+    });
     return;
   }
 
@@ -4906,7 +5235,7 @@ list.addEventListener('click', e => {
         selectedGroup = null;
         selectedMode = null;
         selectedStorage = 'main';
-        feedback.textContent = '';
+        clearFeedbackForSelectionChange();
         load().then(() => {
           const input = document.getElementById('newGroupInput');
           if (input) input.focus();
@@ -4929,7 +5258,7 @@ list.addEventListener('click', e => {
       selectedGroup = card.dataset.name;
       selectedMode = null;
       selectedStorage = 'main';
-      feedback.textContent = '';
+      clearFeedbackForSelectionChange();
       void notifyTutorialProgress('group-selected', {
         projectId: getCurrentProject(),
         groupName: selectedGroup
@@ -4949,11 +5278,20 @@ list.addEventListener('click', e => {
   const newGroupCard = e.target.closest('.group.new-group');
   if (newGroupCard) {
     if (selectionMode) return;
+    const stepId = getCurrentTutorialStep()?.id;
+    const focusedNewGroupInput =
+      document.activeElement instanceof HTMLElement && document.activeElement.id === 'newGroupInput';
+    const clickedInput = !!e.target.closest('#newGroupInput');
+    if (isTutorialNewGroupCreationStep(stepId) && focusedNewGroupInput && !clickedInput) {
+      e.preventDefault();
+      document.activeElement.blur();
+      return;
+    }
     if (selectedGroup || selectedMode) {
       selectedGroup = null;
       selectedMode = null;
       selectedStorage = 'main';
-      feedback.textContent = '';
+      clearFeedbackForSelectionChange();
       load().then(() => {
         const input = document.getElementById('newGroupInput');
         if (input) input.focus();
@@ -4975,7 +5313,7 @@ list.addEventListener('click', e => {
     keepSelectedCardTopAlignedBriefly();
     selectedGroup = card.dataset.name;
     selectedStorage = normalizeStorage(storageBtn.dataset.storage);
-    feedback.textContent = '';
+    clearFeedbackForSelectionChange();
     void notifyTutorialProgress('storage-selected', {
       projectId: getCurrentProject(),
       groupName: selectedGroup,
@@ -4998,7 +5336,7 @@ list.addEventListener('click', e => {
     selectedGroup = card.dataset.name;
     selectedMode = modeBtn.dataset.mode;
     selectedStorage = 'main';
-    feedback.textContent = '';
+    clearFeedbackForSelectionChange();
     stopModeHintPulse();
     void notifyTutorialProgress('mode-selected', {
       projectId: getCurrentProject(),
@@ -5020,7 +5358,7 @@ list.addEventListener('click', e => {
   selectedGroup = card.dataset.name;
   selectedMode = null;
   selectedStorage = 'main';
-  feedback.textContent = '';
+  clearFeedbackForSelectionChange();
   void notifyTutorialProgress('group-selected', {
     projectId: getCurrentProject(),
     groupName: selectedGroup
@@ -5037,16 +5375,22 @@ function cancelLongPress() {
   longPressData = null;
 }
 
+function isCardLongPressExcludedTarget(target) {
+  if (!(target instanceof Element)) return true;
+  if (target.closest('.history-value-toggle')) return false;
+  return !!target.closest(
+    '.mode, .storage-chip, .group-title-input, #newGroupInput, button, input, textarea, select'
+  );
+}
+
 list.addEventListener('pointerdown', (e) => {
   if (helpCliPracticeState.active) return;
   if (selectionMode) return;
+  if (tutorialState.active && !isTutorialComplete() && !isTutorialMultiSelectStartStep()) return;
   if (e.button !== 0) return;
   const card = e.target.closest('.group');
   if (!card || card.classList.contains('new-group')) return;
-  if (e.target.closest('.mode') || e.target.closest('.storage-chip')) return;
-  if (e.target.closest('.mini-history') || e.target.closest('.group-modified')) return;
-
-  if (e.target.closest('.group-title-display, .group-title-input')) return;
+  if (isCardLongPressExcludedTarget(e.target)) return;
 
   const cardId = Number(card.dataset.id);
   if (!Number.isFinite(cardId)) return;
@@ -5068,7 +5412,15 @@ list.addEventListener('pointerdown', (e) => {
     cmd.dispatchEvent(new Event('input'));
     suppressClickUntil = Date.now() + 350;
     updateSelectionBarUI();
-    load();
+    const selectedGroupNames = getSelectedGroupNames();
+    load().then(() => {
+      void notifyTutorialProgress('selection-started', {
+        projectId: getCurrentProject(),
+        groupName: String(card.dataset.name || ''),
+        selectedGroupNames,
+        count: selectedGroupNames.length
+      });
+    });
     navigator.vibrate?.(18);
     cancelLongPress();
   }, 420);
@@ -5087,7 +5439,7 @@ list.addEventListener('pointerleave', cancelLongPress);
 
 cmd.addEventListener('input', () => {
   // Auto-dismiss success/info feedback once user starts typing again.
-  if (cmd.value.trim().length > 0 && feedback?.textContent?.trim()) {
+  if (!suppressCmdFeedbackAutoDismiss && cmd.value.trim().length > 0 && feedback?.textContent?.trim()) {
     clearFeedbackSoon(650);
   }
 
@@ -5618,6 +5970,12 @@ const allTotalsSettingTitle = document.getElementById('allTotalsSettingTitle');
 const allTotalsSettingSub = document.getElementById('allTotalsSettingSub');
 const helpPositionTitle = document.getElementById('helpPositionTitle');
 const helpPositionSub = document.getElementById('helpPositionSub');
+const LANGUAGE_SETTING_TITLE = 'Language';
+const LANGUAGE_SETTING_SUB = 'Choose which language RoGo uses';
+const LANGUAGE_OPTION_LABELS = {
+  nl: 'Dutch',
+  en: 'English'
+};
 const helpPositionToggle = document.getElementById('helpPositionToggle');
 const freezerFeatureTitle = document.getElementById('freezerFeatureTitle');
 const freezerFeatureSub = document.getElementById('freezerFeatureSub');
@@ -5641,6 +5999,9 @@ const devViewportSyncBtn = document.getElementById('devViewportSyncBtn');
 const devSnowfallTitle = document.getElementById('devSnowfallTitle');
 const devSnowfallSub = document.getElementById('devSnowfallSub');
 const devSnowfallBtn = document.getElementById('devSnowfallBtn');
+const devTutorialFinishTitle = document.getElementById('devTutorialFinishTitle');
+const devTutorialFinishSub = document.getElementById('devTutorialFinishSub');
+const devTutorialFinishBtn = document.getElementById('devTutorialFinishBtn');
 const themeTitle = document.getElementById('themeTitle');
 const themeSub = document.getElementById('themeSub');
 const handedTitle = document.getElementById('handedTitle');
@@ -5669,6 +6030,12 @@ const screenshotLoadingSub = document.getElementById('screenshotLoadingSub');
 const screenshotLoadingStatus = document.getElementById('screenshotLoadingStatus');
 const screenshotLoadingTimeout = document.getElementById('screenshotLoadingTimeout');
 const screenshotLoadingCancelBtn = document.getElementById('screenshotLoadingCancelBtn');
+const tutorialScreenshotPreviewBackdrop = document.getElementById('tutorialScreenshotPreviewBackdrop');
+const tutorialScreenshotPreviewModal = document.getElementById('tutorialScreenshotPreviewModal');
+const tutorialScreenshotPreviewBadge = document.getElementById('tutorialScreenshotPreviewBadge');
+const tutorialScreenshotPreviewTitle = document.getElementById('tutorialScreenshotPreviewTitle');
+const tutorialScreenshotPreviewSub = document.getElementById('tutorialScreenshotPreviewSub');
+const tutorialScreenshotPreviewImg = document.getElementById('tutorialScreenshotPreviewImg');
 const actionDialogBackdrop = document.getElementById('actionDialogBackdrop');
 const actionDialogModal = document.getElementById('actionDialogModal');
 const actionDialogKicker = document.getElementById('actionDialogKicker');
@@ -5685,6 +6052,7 @@ const reorderTitle = document.getElementById('reorderTitle');
 const reorderSub = document.getElementById('reorderSub');
 const reorderCardsBtn = document.getElementById('reorderCardsBtn');
 const reorderBackdrop = document.getElementById('reorderBackdrop');
+const reorderKicker = document.getElementById('reorderKicker');
 const reorderModalTitle = document.getElementById('reorderModalTitle');
 const reorderModalSub = document.getElementById('reorderModalSub');
 const reorderModalMeta = document.getElementById('reorderModalMeta');
@@ -5797,6 +6165,14 @@ const tutorialStepBody = document.getElementById('tutorialStepBody');
 const tutorialStepHint = document.getElementById('tutorialStepHint');
 const tutorialRepeatBtn = document.getElementById('tutorialRepeatBtn');
 const tutorialEndBtn = document.getElementById('tutorialEndBtn');
+const tutorialFinishTransition = document.getElementById('tutorialFinishTransition');
+const tutorialFinishKicker = document.getElementById('tutorialFinishKicker');
+const tutorialFinishTitle = document.getElementById('tutorialFinishTitle');
+const tutorialFinishBody = document.getElementById('tutorialFinishBody');
+const tutorialFinishFooter = document.getElementById('tutorialFinishFooter');
+const tutorialFinishFinal = document.getElementById('tutorialFinishFinal');
+const tutorialFinishNameCloud = document.getElementById('tutorialFinishNameCloud');
+const tutorialFinishChipCloud = document.getElementById('tutorialFinishChipCloud');
 
 let createProjectMode = 'new';
 let createProjectModeMenuOpen = false;
@@ -5835,6 +6211,7 @@ let helpIntroSeenSession = false;
 let tutorialTargetEl = null;
 let tutorialSecondaryTargetEl = null;
 var tutorialSpotlightFrame = 0;
+let tutorialSpotlightSettleToken = 0;
 let tutorialStepSyncToken = 0;
 let tutorialStepEnteredId = '';
 let tutorialCelebrationShown = false;
@@ -5851,6 +6228,13 @@ const TUTORIAL_SIDE_PANEL_REQUIRED_STEP_IDS = new Set([
   'review-project',
   'open-settings-for-freezer',
   'enable-freezer-feature',
+  'expand-route-options',
+  'review-expanded-route-options',
+  'review-route-action-multi-select',
+  'review-route-action-export',
+  'review-route-action-screenshot',
+  'open-screenshot-import-demo',
+  'open-reorder-customers',
   'open-route-dots',
   'delete-route',
   'review-route-deleted',
@@ -5861,6 +6245,7 @@ let tutorialState = {
   active: false,
   stepIndex: 0,
   originalProjectId: '',
+  originalCmdValue: '',
   projectId: '',
   projectName: '',
   customerName: '',
@@ -5868,8 +6253,19 @@ let tutorialState = {
   renamedCustomerName: '',
   initialFreezerEnabled: false,
   timestampToggleCount: 0,
-  miniHistoryToggleCount: 0
+  miniHistoryToggleCount: 0,
+  multiSelectStartName: '',
+  screenshotImportReadReady: false,
+  clipboardPreviewText: '',
+  completionVariant: '',
+  reopenHelpOnFinish: false
 };
+
+let tutorialImportPreviewFitFrame = 0;
+let tutorialImportPreviewMeasureEl = null;
+let tutorialFinishTransitionToken = 0;
+let tutorialFinishSequenceStarted = false;
+let tutorialFinishPanelVisible = false;
 
 function updatePanelSettingsButton() {
   if (!panelSettingsBtn) return;
@@ -5890,8 +6286,28 @@ function getResetHoldSecondsLabel(msRemaining = RESET_HOLD_MS) {
   return seconds >= 1 ? seconds.toFixed(1).replace(/\.0$/, '') : seconds.toFixed(1);
 }
 
+function isResetHoldDisabledForTutorial() {
+  return tutorialState.active && !isTutorialComplete();
+}
+
 function syncResetHoldButtonUI() {
   if (!resetBtn) return;
+
+  const tutorialDisabled = isResetHoldDisabledForTutorial();
+  if (tutorialDisabled && resetHoldStartedAt) {
+    if (resetHoldTimer) clearTimeout(resetHoldTimer);
+    if (resetHoldFrame) cancelAnimationFrame(resetHoldFrame);
+    resetHoldTimer = null;
+    resetHoldFrame = 0;
+    resetHoldStartedAt = 0;
+    resetHoldPointerId = null;
+    resetHoldStartX = 0;
+    resetHoldStartY = 0;
+    resetHoldKey = '';
+  }
+
+  resetBtn.disabled = tutorialDisabled;
+  resetBtn.setAttribute('aria-disabled', tutorialDisabled ? 'true' : 'false');
 
   const idleSeconds = Math.ceil(RESET_HOLD_MS / 1000);
   const holding = resetHoldStartedAt > 0;
@@ -5934,7 +6350,7 @@ function tickResetHoldButtonUI() {
 }
 
 function startResetHold({ pointerId = null, clientX = 0, clientY = 0, key = '' } = {}) {
-  if (!resetBtn || resetHoldStartedAt || resetBtn.disabled) return;
+  if (!resetBtn || resetHoldStartedAt || resetBtn.disabled || isResetHoldDisabledForTutorial()) return;
 
   resetHoldStartedAt = performance.now();
   resetHoldPointerId = Number.isFinite(pointerId) ? pointerId : null;
@@ -6069,8 +6485,36 @@ function isTutorialComplete() {
   return tutorialState.active && tutorialState.stepIndex >= HELP_TUTORIAL_STEP_COUNT;
 }
 
+function getHelpInlineCodeTone(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (
+    normalized === 'geleverd'
+    || normalized === 'delivered'
+    || normalized === 'koelcel'
+    || normalized === 'cooler'
+  ) return 'delivered';
+  if (normalized === 'retour' || normalized === 'return') return 'return';
+  if (
+    normalized === 'vriezer'
+    || normalized === 'freezer'
+    || normalized === 'vriezerfunctie'
+    || normalized === 'freezer feature'
+  ) return 'freezer';
+  if (normalized === 'verder' || normalized === 'continue') return 'continue';
+  return '';
+}
+
 function formatHelpRichText(value) {
-  return escapeHtml(String(value || '')).replace(/`([^`]+)`/g, '<code>$1</code>');
+  return String(value || '')
+    .split(/`([^`]+)`/g)
+    .map((part, index) => {
+      if (index % 2 === 0) return escapeHtml(part);
+      const tone = getHelpInlineCodeTone(part);
+      const className = tone ? ` class="code-tone-${tone}"` : '';
+      return `<code${className}>${escapeHtml(part)}</code>`;
+    })
+    .join('');
 }
 
 function getTutorialProgressText(copy = getHelpCopy()) {
@@ -6101,7 +6545,44 @@ function getTutorialHintText(step = getCurrentTutorialStep(), copy = getHelpCopy
 function isTutorialManualContinueStep(step = getCurrentTutorialStep()) {
   const stepId = typeof step === 'string' ? step : step?.id;
   if (stepId === 'enable-freezer-feature' && isFreezerEnabled()) return true;
+  if (stepId === 'read-screenshot-import-demo') return !!tutorialState.screenshotImportReadReady;
   return TUTORIAL_MANUAL_CONTINUE_STEP_IDS.has(String(stepId || ''));
+}
+
+function isTutorialClipboardReviewStep(step = getCurrentTutorialStep()) {
+  const stepId = typeof step === 'string' ? step : step?.id;
+  return TUTORIAL_CLIPBOARD_REVIEW_STEP_IDS.has(String(stepId || ''));
+}
+
+function isTutorialMultiSelectStartStep(step = getCurrentTutorialStep()) {
+  const stepId = typeof step === 'string' ? step : step?.id;
+  return TUTORIAL_MULTI_SELECT_START_STEP_IDS.has(String(stepId || ''));
+}
+
+function isTutorialCliCommandStep(step = getCurrentTutorialStep()) {
+  const stepId = typeof step === 'string' ? step : step?.id;
+  return TUTORIAL_CLI_COMMAND_STEP_IDS.has(String(stepId || ''));
+}
+
+function getTutorialSelectionBarMode(step = getCurrentTutorialStep()) {
+  if (!tutorialState.active || isTutorialComplete()) return 'default';
+  const stepId = typeof step === 'string' ? step : step?.id;
+  if (stepId === 'copy-selected-customers') return 'copy-only';
+  if (
+    stepId === 'start-multi-select-from-card'
+    || stepId === 'select-second-customer-for-copy'
+    || stepId === 'review-both-selected-customers'
+  ) {
+    return 'locked';
+  }
+  return 'default';
+}
+
+function isTutorialSelectionBarActionAllowed(action, step = getCurrentTutorialStep()) {
+  const mode = getTutorialSelectionBarMode(step);
+  if (mode === 'default') return true;
+  if (mode === 'copy-only') return action === 'copy';
+  return false;
 }
 
 function tutorialStepRequiresSidePanel(step = getCurrentTutorialStep()) {
@@ -6279,6 +6760,7 @@ function setTutorialGuideArrowState(state = null) {
 
 function getTutorialGuideArrowState(step = getCurrentTutorialStep(), target = resolveTutorialTarget(), rect = null, viewport = getTutorialViewportMetrics()) {
   if (!tutorialState.active || !step || step.id === 'complete') return null;
+  if (step.id === 'review-useful-settings' || step.id === 'review-settings-overview') return null;
   const copy = getHelpCopy();
 
   if (tutorialStepRequiresSidePanel(step) && sidePanelBackdrop?.classList.contains('hidden')) {
@@ -6471,8 +6953,23 @@ function findProjectPanelDeleteButtonById(projectId) {
     .find((el) => el.getAttribute('data-id') === needle) || null;
 }
 
+function findProjectPanelMenuById(projectId) {
+  const needle = String(projectId || '');
+  if (!needle || !projectList) return null;
+  return [...projectList.querySelectorAll('.panel-project-menu[data-id]')]
+    .find((el) => el.getAttribute('data-id') === needle) || null;
+}
+
 function getProjectsPanelSection() {
   return projectList?.closest('.panel-section[data-title="projects"]') || projectList || null;
+}
+
+function getCurrentRoutePanelSection() {
+  return sidePanel?.querySelector('.panel-section[data-title="currentRoute"]') || null;
+}
+
+function getSettingsPanelSection() {
+  return sidePanel?.querySelector('.panel-section[data-title="settings"]') || null;
 }
 
 function buildHelpCommandState(input, { mode = 'geleverd' } = {}) {
@@ -6606,14 +7103,331 @@ function submitHelpSyntaxPractice() {
   syncHelpSyntaxPracticeCard();
 }
 
+function formatHelpCodeList(values = [], { conjunction = getLang() === 'nl' ? 'of' : 'or' } = {}) {
+  const items = [...new Set((Array.isArray(values) ? values : []).filter(Boolean))]
+    .map((value) => `\`${value}\``);
+  if (!items.length) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} ${conjunction} ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`;
+}
+
+function getHelpTokenAliases(defs, id) {
+  const aliases = allAliasesFor(defs, id).filter(Boolean);
+  return aliases.length ? aliases : [String(id || '').trim().toLowerCase()].filter(Boolean);
+}
+
+function pickHelpAlias(aliases = [], { avoid = [], preferLong = false } = {}) {
+  const unique = [...new Set((Array.isArray(aliases) ? aliases : []).filter(Boolean))];
+  const blocked = new Set((Array.isArray(avoid) ? avoid : []).filter(Boolean));
+  const pool = unique.filter((alias) => !blocked.has(alias));
+  const source = pool.length ? pool : unique;
+  if (!source.length) return '';
+  if (preferLong) {
+    const longest = [...source]
+      .sort((left, right) => right.length - left.length)
+      .find((alias) => alias.length > 2);
+    if (longest) return longest;
+  }
+  return source[0];
+}
+
+function findHelpSuggestionAliasExample(aliasGroups = []) {
+  const groups = Array.isArray(aliasGroups) ? aliasGroups : [];
+  const full = groups
+    .map((aliases) => [...new Set((Array.isArray(aliases) ? aliases : []).filter(Boolean))]
+      .filter((alias) => alias.length >= 3)
+      .sort((left, right) => left.length - right.length || left.localeCompare(right))[0] || '')
+    .find(Boolean) || '';
+  if (!full) return { full: '', partial: '' };
+  return {
+    full,
+    partial: full.slice(0, Math.min(2, full.length))
+  };
+}
+
+function getHelpAliasExampleContext(defs = getTokenDefs()) {
+  const crateAliases = getHelpTokenAliases(defs, 'krat');
+  const containerAliases = getHelpTokenAliases(defs, 'container');
+  const roodAliases = getHelpTokenAliases(defs, 'rood');
+  const hoesAliases = getHelpTokenAliases(defs, 'hoes');
+  const kleinblauwAliases = getHelpTokenAliases(defs, 'kleinblauw');
+  const bierkratAliases = getHelpTokenAliases(defs, 'bierkrat');
+
+  const cratePrimary = pickHelpAlias(crateAliases);
+  const crateReadable = pickHelpAlias(crateAliases, { preferLong: true }) || cratePrimary;
+  const crateAlt = pickHelpAlias(crateAliases, { avoid: [crateReadable] }) || cratePrimary;
+  const containerPrimary = pickHelpAlias(containerAliases);
+  const containerReadable = pickHelpAlias(containerAliases, { preferLong: true }) || containerPrimary;
+  const containerAlt = pickHelpAlias(containerAliases, { avoid: [containerPrimary] }) || containerPrimary;
+  const roodPrimary = pickHelpAlias(roodAliases);
+  const hoesPrimary = pickHelpAlias(hoesAliases);
+  const kleinblauwPrimary = pickHelpAlias(kleinblauwAliases);
+  const bierkratPrimary = pickHelpAlias(bierkratAliases);
+
+  const sameItemAliases = [...new Set(crateAliases)];
+  const sameItemInputs = sameItemAliases.map((alias) => `15${alias}`);
+  const suggestionAliasExample = findHelpSuggestionAliasExample([
+    crateAliases,
+    containerAliases,
+    roodAliases,
+    kleinblauwAliases,
+    bierkratAliases
+  ]);
+  const suggestionExampleCommand = suggestionAliasExample.full ? `15${suggestionAliasExample.full}` : '';
+  const suggestionPartialCommand = suggestionAliasExample.partial ? `15${suggestionAliasExample.partial}` : '';
+  const oneWordGood = `15${crateReadable}`;
+  const oneWordBad = `15 ${crateReadable}`;
+  const partsInput = `15${cratePrimary} 1${containerPrimary}`;
+  const previewInput = `2${containerPrimary} 15${crateReadable} 20${crateAlt} 2${roodPrimary}`;
+  const addsInput = `15${crateReadable}`;
+  const reverseCrateForward = `5${cratePrimary}`;
+  const reverseCrateBackward = `${cratePrimary}5`;
+  const reverseContainerForward = `1${containerPrimary}`;
+  const reverseContainerBackward = `${containerPrimary}1`;
+  const correctionInput = `-5${cratePrimary}`;
+  const longLineInput = `2${containerPrimary} 15${crateReadable} 20${crateAlt} 2${roodPrimary} 1${containerAlt} 10${cratePrimary} 1${hoesPrimary}`;
+  const freezerInput = `10${cratePrimary} 2kv`;
+  const practicePlaceholder = `2${containerPrimary} 15${cratePrimary} 2${roodPrimary}`;
+  const historyInputExample = `15${crateReadable} 20${crateAlt}`;
+  const tutorialFirstCommand = `5${crateReadable} 1${containerReadable}`;
+  const tutorialSecondCommand = `2${containerPrimary} 15${crateReadable} 20${crateAlt} 2${roodPrimary}`;
+  const tutorialFreezerCommand = `2${cratePrimary} 1${roodPrimary}`;
+  const tutorialSecondCustomerCommand = `1kv 1${containerPrimary} 20${cratePrimary}`;
+  const tutorialReturnCommand = `2${containerPrimary} 44${cratePrimary} 2${containerPrimary} 33${cratePrimary} 1${kleinblauwPrimary} 2${bierkratPrimary}`;
+
+  return {
+    crateAliases,
+    cratePrimary,
+    crateReadable,
+    crateAlt,
+    containerPrimary,
+    containerReadable,
+    containerAlt,
+    roodPrimary,
+    hoesPrimary,
+    kleinblauwPrimary,
+    bierkratPrimary,
+    sameItemAliases,
+    sameItemInputs,
+    suggestionExampleCommand,
+    suggestionPartialCommand,
+    oneWordGood,
+    oneWordBad,
+    partsInput,
+    previewInput,
+    addsInput,
+    reverseCrateForward,
+    reverseCrateBackward,
+    reverseContainerForward,
+    reverseContainerBackward,
+    correctionInput,
+    longLineInput,
+    freezerInput,
+    practicePlaceholder,
+    historyInputExample,
+    tutorialFirstCommand,
+    tutorialSecondCommand,
+    tutorialFreezerCommand,
+    tutorialSecondCustomerCommand,
+    tutorialReturnCommand
+  };
+}
+
+function buildAliasAwareTutorialText(copy = getHelpCopy(), examples = getHelpAliasExampleContext()) {
+  const isDutch = getLang() === 'nl';
+  const summaries = (copy.tutorialStepSummaries || []).map((step, index) => {
+    if (index === 4) {
+      return {
+        ...step,
+        body: isDutch
+          ? `Verstuur \`${examples.tutorialFirstCommand}\` en zie chips direct groen worden.`
+          : `Send \`${examples.tutorialFirstCommand}\` and watch the chips turn green immediately.`
+      };
+    }
+    if (index === 6) {
+      return {
+        ...step,
+        body: isDutch
+          ? `Verstuur \`${examples.tutorialSecondCommand}\` en zie dat dezelfde soort invoer samen 35 kratten wordt.`
+          : `Send \`${examples.tutorialSecondCommand}\` and watch the same kind of entry become 35 crates together.`
+      };
+    }
+    if (index === 8) {
+      return {
+        ...step,
+        body: isDutch
+          ? `Open het zijpaneel, vind \`Vriezerfunctie\` in Instellingen, zet hem aan, en stuur daarna \`${examples.tutorialFreezerCommand}\` naar \`Vriezer\`.`
+          : `Open the side panel, find \`Freezer feature\` in Settings, turn it on, and then send \`${examples.tutorialFreezerCommand}\` to \`Freezer\`.`
+      };
+    }
+    if (index === 9) {
+      return {
+        ...step,
+        body: isDutch
+          ? `Voeg daarna nog een klant toe en verstuur op \`Geleverd\` in 1 keer \`${examples.tutorialSecondCustomerCommand}\`.`
+          : `Then add another customer and send \`${examples.tutorialSecondCustomerCommand}\` in 1 go on \`Delivered\`.`
+      };
+    }
+    if (index === 10) {
+      return {
+        ...step,
+        body: isDutch
+          ? `Schakel daarna naar Retour en verstuur in 1 keer \`${examples.tutorialReturnCommand}\`.`
+          : `Then switch to Return and send \`${examples.tutorialReturnCommand}\` in 1 go.`
+      };
+    }
+    return step;
+  });
+
+  return {
+    heroNote: isDutch
+      ? `Je echte routes blijven ongemoeid. De oefenroute gebruikt herkenbare voorbeeldregels zoals \`${examples.tutorialSecondCommand}\`, \`${examples.tutorialFreezerCommand}\`, \`${examples.tutorialSecondCustomerCommand}\` en \`${examples.tutorialReturnCommand}\`.`
+      : `Your real routes stay untouched. The practice route uses recognizable example commands like \`${examples.tutorialSecondCommand}\`, \`${examples.tutorialFreezerCommand}\`, \`${examples.tutorialSecondCustomerCommand}\`, and \`${examples.tutorialReturnCommand}\`.`,
+    startCardBody: isDutch
+      ? `Je oefent route maken, terugzien in de routelijst, het zijpaneel sluiten en later weer openen, een eerste klant toevoegen, Geleverd gebruiken, \`Vriezerfunctie\` terugvinden in Instellingen, \`${examples.tutorialFreezerCommand}\` naar de vriezer-unit sturen, daarna een tweede klant maken met \`${examples.tutorialSecondCustomerCommand}\`, Retour in 1 sterkere regel oefenen, naam wijzigen, tijdstempels en de eerdere regels onderaan de kaart tikken, en de route weer opruimen.`
+      : `You practice route creation, seeing it in the route list, closing and later reopening the side panel, adding a first customer, using Delivered, finding the \`Freezer feature\` in Settings, sending \`${examples.tutorialFreezerCommand}\` to the freezer unit, then adding a second customer with \`${examples.tutorialSecondCustomerCommand}\`, practicing Return in 1 stronger line, renaming, tapping timestamps and the earlier lines at the bottom of the card, and cleaning up again.`,
+    summaries,
+    firstCommandBody: isDutch
+      ? `Het invoerveld is alvast gevuld met \`${examples.tutorialFirstCommand}\`. Tik op Versturen om hem op te slaan.`
+      : `The input field is already filled with \`${examples.tutorialFirstCommand}\`. Tap Send to save it.`,
+    firstCommandHint: isDutch
+      ? `De aliassen die nu voor krat en container actief zijn, werken meteen, dus je ziet snel groene chips.`
+      : `The aliases that are active now for crates and containers work right away, so you will see green chips quickly.`,
+    secondCommandBody: isDutch
+      ? `Nu staat \`${examples.tutorialSecondCommand}\` klaar. Verstuur hem en let erop dat \`15${examples.crateReadable}\` en \`20${examples.crateAlt}\` samen 35 kratten worden.`
+      : `Now \`${examples.tutorialSecondCommand}\` is ready. Send it and notice that \`15${examples.crateReadable}\` and \`20${examples.crateAlt}\` become 35 crates together.`,
+    returnCommandBody: isDutch
+      ? `Nu staat \`${examples.tutorialReturnCommand}\` klaar. Verstuur hem en let erop dat \`2${examples.containerPrimary}\` + \`2${examples.containerPrimary}\` samen 4 containers worden, en \`44${examples.cratePrimary}\` + \`33${examples.cratePrimary}\` samen 77 kratten.`
+      : `Now \`${examples.tutorialReturnCommand}\` is ready. Send it and notice that \`2${examples.containerPrimary}\` + \`2${examples.containerPrimary}\` become 4 containers, while \`44${examples.cratePrimary}\` + \`33${examples.cratePrimary}\` become 77 crates.`,
+    freezerCommandBody: isDutch
+      ? `O, vergeet de vriezerkratten niet. Voor deze klant heb je voor de vriezer-unit nog \`${examples.tutorialFreezerCommand}\`. Verstuur dat zodat dit deel apart onder \`Vriezer\` komt te staan.`
+      : `Do not forget the freezer crates. For this customer you still have \`${examples.tutorialFreezerCommand}\` for the freezer unit. Send it so that part is stored separately under \`Freezer\`.`,
+    reviewFreezerCommandBody: (customerName) => isDutch
+      ? `Op de kaart van \`${customerName}\` zie je nu \`Koelcel\` en \`Vriezer\` apart. Kijk even hoe \`${examples.tutorialFreezerCommand}\` onder \`Vriezer\` is terechtgekomen, terwijl de kleine vriezer-herinnering ook zichtbaar blijft.`
+      : `On the card for \`${customerName}\`, you now see \`Cooler\` and \`Freezer\` separately. Take a moment to see how \`${examples.tutorialFreezerCommand}\` sits under \`Freezer\`, while the small freezer reminder stays visible too.`,
+    secondCustomerCommandBody: isDutch
+      ? `Voor deze klant tel je 1 diepvrieskrat, plus de rest van de container als \`1${examples.containerPrimary} 20${examples.cratePrimary}\`. Typ daarom in 1 regel \`${examples.tutorialSecondCustomerCommand}\` en verstuur hem op \`Geleverd\`.`
+      : `For this customer, you count 1 freezer crate, plus the rest of the container as \`1${examples.containerPrimary} 20${examples.cratePrimary}\`. So type \`${examples.tutorialSecondCustomerCommand}\` in 1 line and send it on \`Delivered\`.`,
+    secondCustomerCommandHint: isDutch
+      ? `Hier laat \`1kv\` zien dat 1 krat naar \`Vriezer\` gaat, terwijl \`1${examples.containerPrimary} 20${examples.cratePrimary}\` gewoon op \`Koelcel\` blijft.`
+      : `Here \`1kv\` sends 1 crate to \`Freezer\`, while \`1${examples.containerPrimary} 20${examples.cratePrimary}\` stays on \`Cooler\`.`,
+    reviewSecondCustomerCommandHint: isDutch
+      ? `Zie je dat \`1kv\` apart is uitgekomen en \`1${examples.containerPrimary} 20${examples.cratePrimary}\` gewoon op \`Koelcel\` staat? Tik op \`Verder\`.`
+      : `Can you see that \`1kv\` landed separately while \`1${examples.containerPrimary} 20${examples.cratePrimary}\` stayed on \`Cooler\`? Tap \`Continue\`.`,
+    completeBody: isDutch
+      ? `Je hebt nu route maken, terugvinden, het zijpaneel sluiten en openen, 2 klanten toevoegen, Geleverd gebruiken, \`Vriezerfunctie\` terugvinden en gebruiken, gemengde invoer zoals \`${examples.tutorialSecondCustomerCommand}\` zien werken, Retour in 1 regel oefenen, hernoemen, tijdstempels en de eerdere regels onderaan de kaart tikken, en route verwijderen via de drie puntjes gezien.`
+      : `You have now seen route creation, finding it again, closing and opening the side panel, adding 2 customers, using Delivered, finding and using the \`Freezer feature\`, seeing mixed input like \`${examples.tutorialSecondCustomerCommand}\` work, practicing Return in 1 line, renaming, tapping timestamps and the earlier lines at the bottom of the card, and deleting a route through the three-dot menu.`,
+  };
+}
+
+function buildAliasAwareTips(copy = getHelpCopy(), examples = getHelpAliasExampleContext()) {
+  const isDutch = getLang() === 'nl';
+  return (copy.tips || []).map((tip, index) => {
+    if (index === 0) {
+      return {
+        ...tip,
+        title: isDutch
+          ? `\`${examples.reverseCrateForward}\` en \`${examples.reverseCrateBackward}\` zijn hetzelfde`
+          : `\`${examples.reverseCrateForward}\` and \`${examples.reverseCrateBackward}\` mean the same thing`,
+        example: `\`${examples.reverseCrateForward}\` = \`${examples.reverseCrateBackward}\` · \`${examples.reverseContainerForward}\` = \`${examples.reverseContainerBackward}\``,
+        exampleVisual: {
+          type: 'sequence',
+          parts: [
+            { label: examples.reverseCrateForward, tone: 'accent' },
+            { kind: 'sep', label: '=' },
+            { label: examples.reverseCrateBackward, tone: 'accent' },
+            { kind: 'sep', label: '·' },
+            { label: examples.reverseContainerForward, tone: 'accent' },
+            { kind: 'sep', label: '=' },
+            { label: examples.reverseContainerBackward, tone: 'accent' }
+          ]
+        }
+      };
+    }
+    if (index === 1) {
+      return {
+        ...tip,
+        title: isDutch
+          ? `Met \`${examples.correctionInput}\` haal je er weer af`
+          : `Use \`${examples.correctionInput}\` to remove it again`,
+        example: `\`20${examples.cratePrimary}\` + \`${examples.correctionInput}\` = 15 ${isDutch ? 'kratten' : 'crates'}`,
+        exampleVisual: {
+          type: 'sequence',
+          parts: [
+            { label: `20${examples.cratePrimary}`, tone: 'accent' },
+            { kind: 'sep', label: '+' },
+            { label: examples.correctionInput, tone: 'danger' },
+            { kind: 'sep', label: '=' },
+            { label: `15 ${isDutch ? 'kratten' : 'crates'}`, tone: 'neutral' }
+          ]
+        }
+      };
+    }
+    if (index === 2 && examples.suggestionPartialCommand && examples.suggestionExampleCommand) {
+      return {
+        ...tip,
+        example: isDutch
+          ? `Oranje \`${examples.suggestionPartialCommand}\` -> groen \`${examples.suggestionExampleCommand}\``
+          : `Amber \`${examples.suggestionPartialCommand}\` -> green \`${examples.suggestionExampleCommand}\``,
+        exampleVisual: {
+          type: 'chips',
+          items: [
+            { label: examples.suggestionPartialCommand, tone: 'warn' },
+            { label: examples.suggestionExampleCommand, tone: 'good' },
+            { label: '15x', tone: 'bad' }
+          ]
+        }
+      };
+    }
+    if (tip.anchor === 'freezer') {
+      return {
+        ...tip,
+        body: isDutch
+          ? `Rijd je vaak met een c-vrachtwagen met aparte vriezerunit, zet deze instelling dan aan. Je krijgt dan aparte vakken voor \`Koelcel\` en \`Vriezer\`, plus een blijvende vriezer-herinnering op de kaart. Zo zie je in 1 oogopslag bijvoorbeeld \`10${examples.cratePrimary}\` onder Koelcel en \`2${examples.cratePrimary}\` onder Vriezer, terwijl die kleine reminder ook gewoon \`2${examples.cratePrimary}\` blijft tonen zodat je dat deel niet vergeet tijdens het tellen of doorlopen. Voor snelle invoer blijven de vriezer-snelkoppelingen bewust vast op \`kv\`/\`kf\`, \`rv\`/\`rf\` en \`epsv\`/\`epsf\`, ook als je je gewone aliases hebt aangepast.`
+          : `If you often drive a box truck with a separate freezer unit, turn this setting on. You then get separate \`Cooler\` and \`Freezer\` blocks, plus a small freezer reminder that stays visible on the card. So at a glance you might see \`10${examples.cratePrimary}\` under Cooler and \`2${examples.cratePrimary}\` under Freezer, while that small reminder also keeps showing \`2${examples.cratePrimary}\` so you do not lose that part while counting or walking the route. For quick input, the freezer shortcuts intentionally stay fixed as \`kv\`/\`kf\`, \`rv\`/\`rf\`, and \`epsv\`/\`epsf\`, even if you changed your normal aliases.`,
+        example: isDutch
+          ? `Vriezer-herinnering blijft op \`2${examples.cratePrimary}\``
+          : `Freezer reminder stays at \`2${examples.cratePrimary}\``,
+        exampleVisual: {
+          type: 'freezer',
+          mainLabel: isDutch ? 'Koelcel' : 'Cooler',
+          mainValue: `10${examples.cratePrimary}`,
+          freezerLabel: isDutch ? 'Vriezer' : 'Freezer',
+          freezerValue: `2${examples.cratePrimary}`,
+          reminder: `2${examples.cratePrimary}`
+        }
+      };
+    }
+    if (index === 8) {
+      return {
+        ...tip,
+        example: isDutch
+          ? `\`Totaal: 35 kratten\` <-> \`Invoer: ${examples.historyInputExample}\``
+          : `\`Total: 35 crates\` <-> \`Input: ${examples.historyInputExample}\``,
+        exampleVisual: {
+          type: 'sequence',
+          parts: [
+            { label: `${isDutch ? 'Totaal' : 'Total'}: 35 ${isDutch ? 'kratten' : 'crates'}`, tone: 'history' },
+            { kind: 'sep', label: '<->' },
+            { label: `${isDutch ? 'Invoer' : 'Input'}: ${examples.historyInputExample}`, tone: 'history' }
+          ]
+        }
+      };
+    }
+    return tip;
+  });
+}
+
 function renderHelpTutorialTab(copy = getHelpCopy()) {
+  const tutorialText = buildAliasAwareTutorialText(copy, getHelpAliasExampleContext());
   const routeName = tutorialState.projectName || suggestUniqueProjectName(copy.tutorialDraftRoute, readProjects());
-  const summaries = copy.tutorialStepSummaries
+  const summaries = tutorialText.summaries
     .map((step, index) => `
       <div class="help-step-item">
         <div class="help-step-index">${index + 1}</div>
         <div class="help-step-copy">
-          <h4>${escapeHtml(step.title)}</h4>
+          <h4>${formatHelpRichText(step.title)}</h4>
           <p>${formatHelpRichText(step.body)}</p>
         </div>
       </div>
@@ -6623,25 +7437,25 @@ function renderHelpTutorialTab(copy = getHelpCopy()) {
   return `
     <div class="help-hero-card">
       <div class="help-eyebrow">${escapeHtml(copy.tabs.tutorial)}</div>
-      <h4>${escapeHtml(copy.tutorialHeroTitle)}</h4>
-      <p>${escapeHtml(copy.tutorialHeroBody)}</p>
+      <h4>${formatHelpRichText(copy.tutorialHeroTitle)}</h4>
+      <p>${formatHelpRichText(copy.tutorialHeroBody)}</p>
       <div class="help-inline-note">${escapeHtml(getTutorialProgressText(copy))}</div>
     </div>
     <div class="help-grid">
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(t('projectsTitle'))}</div>
         <h4>${escapeHtml(routeName)}</h4>
-        <p>${escapeHtml(copy.tutorialHeroNote)}</p>
+        <p>${formatHelpRichText(tutorialText.heroNote)}</p>
       </div>
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(copy.tabs.tutorial)}</div>
-        <h4>${escapeHtml(tutorialState.active && !isTutorialComplete() ? copy.resumeTutorial : copy.startTutorial)}</h4>
-        <p>${escapeHtml(copy.tutorialStartCardBody || copy.tutorialHeroBody)}</p>
+        <h4>${formatHelpRichText(tutorialState.active && !isTutorialComplete() ? copy.resumeTutorial : copy.startTutorial)}</h4>
+        <p>${formatHelpRichText(tutorialText.startCardBody)}</p>
       </div>
     </div>
     <div class="help-card">
       <div class="help-eyebrow">${escapeHtml(copy.tabs.tutorial)}</div>
-      <h4>${escapeHtml(copy.tutorialOverviewTitle || copy.modalTitle)}</h4>
+      <h4>${formatHelpRichText(copy.tutorialOverviewTitle || copy.modalTitle)}</h4>
       <div class="help-step-list">${summaries}</div>
     </div>
   `;
@@ -6660,32 +7474,32 @@ function renderHelpRogoTab(copy = getHelpCopy()) {
   return `
     <div class="help-hero-card">
       <div class="help-eyebrow">${escapeHtml(copy.tabs.rogo)}</div>
-      <h4>${escapeHtml(copy.rogoHeroTitle)}</h4>
+      <h4>${formatHelpRichText(copy.rogoHeroTitle)}</h4>
       <p>${formatHelpRichText(copy.rogoHeroBody)}</p>
       <div class="help-inline-note help-rogo-slogan">${formatHelpRichText(copy.rogoHeroSlogan)}</div>
     </div>
     <div class="help-card">
       <div class="help-eyebrow">${escapeHtml(copy.rogoPrivacyLabel)}</div>
-      <h4>${escapeHtml(copy.rogoPrivacyTitle)}</h4>
+      <h4>${formatHelpRichText(copy.rogoPrivacyTitle)}</h4>
       <p>${formatHelpRichText(copy.rogoPrivacyBody)}</p>
       <div class="help-inline-note">${formatHelpRichText(copy.rogoPrivacyHint)}</div>
     </div>
     <div class="help-grid">
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(copy.rogoMentalLoadLabel)}</div>
-        <h4>${escapeHtml(copy.rogoMentalLoadTitle)}</h4>
+        <h4>${formatHelpRichText(copy.rogoMentalLoadTitle)}</h4>
         <p>${formatHelpRichText(copy.rogoMentalLoadBody)}</p>
       </div>
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(copy.rogoLayoutLabel)}</div>
-        <h4>${escapeHtml(copy.rogoLayoutTitle)}</h4>
+        <h4>${formatHelpRichText(copy.rogoLayoutTitle)}</h4>
         <p>${formatHelpRichText(copy.rogoLayoutBody)}</p>
         <div class="help-inline-note">${formatHelpRichText(copy.rogoLayoutHint)}</div>
       </div>
     </div>
     <div class="help-command-card">
       <div class="help-eyebrow">${escapeHtml(copy.rogoScenarioLabel)}</div>
-      <h4>${escapeHtml(copy.rogoScenarioTitle)}</h4>
+      <h4>${formatHelpRichText(copy.rogoScenarioTitle)}</h4>
       <div class="help-command-note">${formatHelpRichText(copy.rogoScenarioCountLabel)}</div>
       <p>${formatHelpRichText(copy.rogoScenarioBody)}</p>
       <div class="help-inline-note">${formatHelpRichText(copy.rogoScenarioHint)}</div>
@@ -6693,19 +7507,19 @@ function renderHelpRogoTab(copy = getHelpCopy()) {
     <div class="help-grid">
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(copy.rogoWhenLabel)}</div>
-        <h4>${escapeHtml(copy.rogoWhenTitle)}</h4>
+        <h4>${formatHelpRichText(copy.rogoWhenTitle)}</h4>
         <p>${formatHelpRichText(copy.rogoWhenBody)}</p>
       </div>
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(copy.rogoAfterLabel)}</div>
-        <h4>${escapeHtml(copy.rogoAfterTitle)}</h4>
+        <h4>${formatHelpRichText(copy.rogoAfterTitle)}</h4>
         <p>${formatHelpRichText(copy.rogoAfterBody)}</p>
       </div>
     </div>
     <div class="help-grid">
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(copy.rogoQualityLabel)}</div>
-        <h4>${escapeHtml(copy.rogoQualityTitle)}</h4>
+        <h4>${formatHelpRichText(copy.rogoQualityTitle)}</h4>
         <p>${formatHelpRichText(copy.rogoQualityBody)}</p>
         <ul class="help-tip-list">${qualityItems}</ul>
         <div class="help-inline-note">${formatHelpRichText(rogoQualityHint)}</div>
@@ -6713,7 +7527,7 @@ function renderHelpRogoTab(copy = getHelpCopy()) {
       </div>
       <div class="help-card">
         <div class="help-eyebrow">${escapeHtml(copy.rogoBenefitsLabel)}</div>
-        <h4>${escapeHtml(copy.rogoBenefitsTitle)}</h4>
+        <h4>${formatHelpRichText(copy.rogoBenefitsTitle)}</h4>
         <ul class="help-tip-list">${benefits}</ul>
       </div>
     </div>
@@ -6721,32 +7535,93 @@ function renderHelpRogoTab(copy = getHelpCopy()) {
 }
 
 function renderHelpSyntaxTab(copy = getHelpCopy()) {
-  const freezerEnabled = isFreezerEnabled();
-  const syntaxFreezerHint = freezerEnabled ? copy.syntaxFreezerHint : (copy.syntaxFreezerHintDisabled || copy.syntaxFreezerHint);
   const defs = getTokenDefs();
+  const isDutch = getLang() === 'nl';
+  const freezerEnabled = isFreezerEnabled();
+  const examples = getHelpAliasExampleContext(defs);
   const suggestionExample = formatTokenOption(defs, 'krat');
   const suggestionMatch = /^(.*?)(\s*\([^)]+\))$/.exec(suggestionExample);
   const suggestionMain = suggestionMatch?.[1] || suggestionExample;
   const suggestionAliases = suggestionMatch?.[2] || '';
   const syntaxDoItemLabel = defs?.krat?.name_nl || 'TotaalVERS Emballagekrat';
-  const aliasList = suggestionAliases
-    .replace(/[()]/g, '')
-    .split('/')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const sameItemInputs = (aliasList.length ? aliasList : ['krat']).slice(0, 3).map((alias) => `15${alias}`);
-  const partsExampleInput = '15k 1cont';
-  const previewInputExample = '2cont 15krat 20krat 2rood';
-  const addsExistingExample = '10 TotaalVERS kratten';
-  const addsInputExample = '15krat';
-  const addsResultExample = '25 TotaalVERS kratten';
-  const reverseExamplePrimary = '5k = k5';
-  const reverseExampleSecondary = '1cont = cont1';
-  const correctionExistingExample = '20 TotaalVERS kratten';
-  const correctionInputExample = '-5k';
-  const correctionResultExample = '15 TotaalVERS kratten';
-  const longLineInputExample = '2cont 15krat 20k 2rood 1c 10k 1hoes';
-  const freezerInputExample = '10k 2kf';
+  const sameItemAliasText = `(${examples.sameItemAliases.join('/')})`;
+  const sameItemInputsText = formatHelpCodeList(examples.sameItemInputs);
+  const sameItemAliasListText = formatHelpCodeList(examples.sameItemAliases);
+  const syntaxOneWordBody = isDutch
+    ? `Gebruik geen spatie tussen het getal en het soort. Op een container tel je bijvoorbeeld 15 kratten: dus je typt \`${examples.oneWordGood}\` en niet \`${examples.oneWordBad}\`.`
+    : `Do not put a space between the number and the item. For example, if you count 15 crates on a container, type \`${examples.oneWordGood}\` instead of \`${examples.oneWordBad}\`.`;
+  const syntaxBracketBody = isDutch
+    ? `In een suggestie is de lange naam vooral uitleg. Het deel tussen haakjes laat zien wat je echt kunt typen, zoals ${sameItemAliasListText}.`
+    : `In a suggestion, the long name is mostly explanation. The part inside the brackets shows what you can actually type, like ${sameItemAliasListText}.`;
+  const syntaxSameItemBody = examples.sameItemInputs.length > 1
+    ? (isDutch
+      ? `Bij \`${sameItemAliasText}\` mag je ${sameItemInputsText} typen. RoGo ziet dat allemaal als hetzelfde item.`
+      : `With \`${sameItemAliasText}\`, you can type ${sameItemInputsText}. RoGo treats all of them as the same item.`)
+    : (isDutch
+      ? `Bij \`${sameItemAliasText}\` typ je bijvoorbeeld \`${examples.sameItemInputs[0] || examples.oneWordGood}\`. RoGo ziet dat gewoon als hetzelfde item.`
+      : `With \`${sameItemAliasText}\`, you can type \`${examples.sameItemInputs[0] || examples.oneWordGood}\`. RoGo still treats that as the same item.`);
+  const partsExampleInput = examples.partsInput;
+  const syntaxPartsBody = isDutch
+    ? `Een spatie gebruik je alleen tussen losse delen, bijvoorbeeld \`${partsExampleInput}\`. Binnen 1 deel blijft het getal vast aan het soort.`
+    : `Use a space only between separate parts, for example \`${partsExampleInput}\`. Inside 1 part, the number stays attached to the item.`;
+  const syntaxPartsHint = isDutch
+    ? `Dus: \`${partsExampleInput}\` mag wel, maar \`${examples.oneWordBad}\` niet.`
+    : `So \`${partsExampleInput}\` is fine, but \`${examples.oneWordBad}\` is not.`;
+  const previewInputExample = examples.previewInput;
+  const syntaxPreviewBody = isDutch
+    ? `De previewregel telt alles wat je in die ene regel typt eerst bij elkaar op. Typ je \`${previewInputExample}\`, dan laat de preview alvast 35 kratten, 2 containers en 2 rode kratten zien voor de geselecteerde klant.`
+    : `The preview line adds up everything you type in that one line first. If you type \`${previewInputExample}\`, the preview already shows 35 crates, 2 containers, and 2 red crates for the selected customer.`;
+  const addsExistingExample = isDutch ? '10 TotaalVERS kratten' : '10 TotaalVERS crates';
+  const addsInputExample = examples.addsInput;
+  const syntaxAddsBody = isDutch
+    ? `Staan er bij deze bestaande klant al 10 TotaalVERS kratten op de kaart en tel je op de volgende container \`${addsInputExample}\`, dan typ je alleen \`${addsInputExample}\`.`
+    : `If this existing customer already shows 10 TotaalVERS crates and the next container has \`${addsInputExample}\`, you only type \`${addsInputExample}\`.`;
+  const addsResultExample = isDutch ? '25 TotaalVERS kratten' : '25 TotaalVERS crates';
+  const reverseExamplePrimary = `${examples.reverseCrateForward} = ${examples.reverseCrateBackward}`;
+  const reverseExampleSecondary = `${examples.reverseContainerForward} = ${examples.reverseContainerBackward}`;
+  const syntaxReverseBody = isDutch
+    ? `Je mag het getal ook achter een korte schrijfwijze zetten, zoals \`${examples.reverseCrateBackward}\` of \`${examples.reverseContainerBackward}\`. RoGo leest dat hetzelfde als \`${examples.reverseCrateForward}\` en \`${examples.reverseContainerForward}\`.`
+    : `You can also place the number after a short form, like \`${examples.reverseCrateBackward}\` or \`${examples.reverseContainerBackward}\`. RoGo reads that the same as \`${examples.reverseCrateForward}\` and \`${examples.reverseContainerForward}\`.`;
+  const correctionExistingExample = isDutch ? '20 TotaalVERS kratten' : '20 TotaalVERS crates';
+  const correctionInputExample = examples.correctionInput;
+  const syntaxCorrectionBody = isDutch
+    ? `Heb je net te veel geteld, dan hoef je niets te wissen. Typ gewoon een min voor het deel dat eraf moet, zoals \`${correctionInputExample}\`.`
+    : `If you just counted too much, you do not need to clear anything. Just type a minus for the part that should come off, like \`${correctionInputExample}\`.`;
+  const correctionResultExample = isDutch ? '15 TotaalVERS kratten' : '15 TotaalVERS crates';
+  const longLineInputExample = examples.longLineInput;
+  const syntaxLongLineHint = isDutch
+    ? `Hier worden \`15${examples.crateReadable}\`, \`20${examples.crateAlt}\` en \`10${examples.cratePrimary}\` samen 45 kratten, en \`2${examples.containerPrimary}\` met \`1${examples.containerAlt}\` samen 3 containers.`
+    : `Here, \`15${examples.crateReadable}\`, \`20${examples.crateAlt}\`, and \`10${examples.cratePrimary}\` become 45 crates together, and \`2${examples.containerPrimary}\` with \`1${examples.containerAlt}\` becomes 3 containers.`;
+  const freezerInputExample = examples.freezerInput;
+  const syntaxFreezerBody = isDutch
+    ? `Staat de vriezerfunctie aan en zit je op \`Geleverd\`, dan kun je vriezerdelen meteen in dezelfde regel zetten, zoals \`${freezerInputExample}\`.`
+    : `If the freezer feature is on and you are in \`Delivered\`, you can put freezer parts in the same line right away, like \`${freezerInputExample}\`.`;
+  const syntaxFreezerHint = freezerEnabled
+    ? (isDutch
+      ? 'Gebruik aan het eind `v` of `f` om iets naar `Vriezer` te sturen. Deze vriezer-snelkoppelingen blijven bewust `kv`/`kf`, `rv`/`rf` en `epsv`/`epsf`, ook als je je gewone aliases hebt aangepast. Daardoor typ je voor vriezer meestal vormen zoals `2kv` of `1rv`, omdat kratten en rode kratten daar het vaakst los terechtkomen.'
+      : 'Use `v` or `f` at the end to send something to `Freezer`. These freezer shortcuts intentionally stay fixed as `kv`/`kf`, `rv`/`rf`, and `epsv`/`epsf`, even if you changed your normal aliases. In practice that means freezer input is usually written as forms like `2kv` or `1rv`, because crates and red crates are the items most often kept separate there.')
+    : (isDutch
+      ? 'Deze invoer werkt pas als `Vriezerfunctie` aanstaat. Gebruik dan aan het eind `v` of `f` om iets naar `Vriezer` te sturen. Die vriezer-snelkoppelingen blijven bewust `kv`/`kf`, `rv`/`rf` en `epsv`/`epsf`, ook als je je gewone aliases hebt aangepast. Open `Tips` om te zien waar je hem vindt en hoe het eruitziet.'
+      : 'This input only works once `Freezer feature` is enabled. After that, use `v` or `f` at the end to send something to `Freezer`. Those freezer shortcuts intentionally stay fixed as `kv`/`kf`, `rv`/`rf`, and `epsv`/`epsf`, even if you changed your normal aliases. Open `Tips` to see where to find it and what it looks like.');
+  const syntaxExamples = [
+    examples.suggestionPartialCommand
+      ? {
+          command: examples.suggestionPartialCommand,
+          title: `\`${examples.suggestionPartialCommand}\` ${isDutch ? 'is nog net te kort' : 'is still just short'}`,
+          body: isDutch
+            ? 'RoGo ziet wel waar je heen wilt en toont daarom suggesties voor mogelijke matches.'
+            : 'RoGo can already guess the intent, so it shows suggestions for likely matches.'
+        }
+      : null,
+    {
+      command: previewInputExample,
+      title: isDutch ? 'Losse stukken mogen stapelen' : 'Separate parts can stack',
+      body: isDutch
+        ? 'Meerdere stukken in 1 regel zijn prima. Ook gemixte soorten mogen samen in 1 invoer, en de preview telt alles meteen op.'
+        : 'Multiple parts in one line are fine. Different item types can be mixed too, and the preview totals everything right away.',
+      showSuggestions: false
+    }
+  ].filter(Boolean);
   const previewTotals = emptyTotals();
   previewTotals.container = 2;
   previewTotals.krat = 35;
@@ -6778,13 +7653,11 @@ function renderHelpSyntaxTab(copy = getHelpCopy()) {
       mixedStorage: true
     }
   );
-  const freezerChips = [
-    { label: '+10 k', tone: 'good' },
-    { label: '+2 kf', tone: 'good' }
-  ]
+  const freezerState = buildHelpCommandState(freezerInputExample, { mode: 'geleverd' });
+  const freezerChips = freezerState.chips
     .map((chip) => `<div class="chip ${chip.tone}">${escapeHtml(chip.label)}</div>`)
     .join('');
-  const cards = copy.syntaxExamples
+  const cards = syntaxExamples
     .map((example) => {
       const state = buildHelpCommandState(example.command);
       const chips = state.chips
@@ -6798,7 +7671,7 @@ function renderHelpSyntaxTab(copy = getHelpCopy()) {
         <div class="help-command-card">
           <div class="help-eyebrow">${escapeHtml(copy.tabs.syntax)}</div>
           <h4>${formatHelpRichText(example.title)}</h4>
-          <p>${escapeHtml(example.body)}</p>
+          <p>${formatHelpRichText(example.body)}</p>
           <div class="help-command-input">${escapeHtml(example.command)}</div>
           <div class="help-command-note">${escapeHtml(copy.syntaxChipsLabel)}</div>
           <div class="help-chip-row">${chips}</div>
@@ -6812,10 +7685,36 @@ function renderHelpSyntaxTab(copy = getHelpCopy()) {
   const firstExampleCard = cards[0] || '';
   const remainingExampleCards = cards.slice(1).join('');
 
-  const tips = copy.syntaxTips
+  const syntaxTips = [
+    isDutch
+      ? 'Typ aantal en soort altijd aan elkaar, dus zonder spatie.'
+      : 'Always keep the number and item together, without a space.',
+    isDutch
+      ? 'Alles tussen de haakjes hoort bij hetzelfde item; kies de vorm die jij het snelst typt.'
+      : 'Everything inside the brackets belongs to the same item, so use whichever form feels fastest.',
+    isDutch
+      ? `Het getal mag vaak ook achter het soort staan, zoals \`${examples.reverseCrateBackward}\` of \`${examples.reverseContainerBackward}\`.`
+      : `The number can also go after the item, like \`${examples.reverseCrateBackward}\` or \`${examples.reverseContainerBackward}\`.`,
+    isDutch
+      ? `Een spatie gebruik je alleen om een nieuw deel te starten, zoals \`${partsExampleInput}\`.`
+      : `Use a space only to start a new part, like \`${partsExampleInput}\`.`,
+    isDutch
+      ? 'Nieuwe regels tellen erbij op, dus typ alleen wat je er nu bij telt en niet het nieuwe eindtotaal.'
+      : 'New lines add onto the existing total, so only type what you are adding now, not the new final total.',
+    isDutch
+      ? `Met een min corrigeer je direct, zoals \`${correctionInputExample}\`.`
+      : `Use a minus to correct right away, like \`${correctionInputExample}\`.`,
+    isDutch
+      ? 'Met vriezer aan blijven de vriezer-snelkoppelingen `kv`/`kf`, `rv`/`rf` en `epsv`/`epsf`; die staan los van je gewone aliases.'
+      : 'With freezer on, the freezer shortcuts stay `kv`/`kf`, `rv`/`rf`, and `epsv`/`epsf`; they are separate from your normal aliases.',
+    isDutch
+      ? 'Klopt de previewregel niet? Pas eerst je invoer aan en tik daarna pas op `Versturen`.'
+      : 'If the preview line looks wrong, fix the input first and only then tap `Send`.'
+  ];
+  const tips = syntaxTips
     .map((tip) => `<li><p>${formatHelpRichText(tip)}</p></li>`)
     .join('');
-  const sameItemPills = sameItemInputs
+  const sameItemPills = examples.sameItemInputs
     .map((item) => `<div class="help-suggestion-pill"><code>${escapeHtml(item)}</code></div>`)
     .join('');
   const longLineState = buildHelpCommandState(longLineInputExample);
@@ -6827,53 +7726,74 @@ function renderHelpSyntaxTab(copy = getHelpCopy()) {
   return `
     <div class="help-hero-card">
       <div class="help-eyebrow">${escapeHtml(copy.tabs.syntax)}</div>
-      <h4>${escapeHtml(copy.syntaxHeroTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxHeroTitle)}</h4>
       <p>${formatHelpRichText(copy.syntaxHeroBody)}</p>
     </div>
     <div class="help-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxImportantLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxOneWordTitle)}</h4>
-      <p>${formatHelpRichText(copy.syntaxOneWordBody)}</p>
+      <h4>${formatHelpRichText(copy.syntaxOneWordTitle)}</h4>
+      <p>${formatHelpRichText(syntaxOneWordBody)}</p>
     </div>
     <div class="help-grid">
       <div class="help-command-card">
         <div class="help-eyebrow">${escapeHtml(copy.syntaxDoLabel)}</div>
-        <h4><code>15krat</code></h4>
-        <div class="help-command-input">15krat</div>
-        <p>${escapeHtml(copy.syntaxDoBody)}</p>
+        <h4><code>${escapeHtml(examples.oneWordGood)}</code></h4>
+        <div class="help-command-input">${escapeHtml(examples.oneWordGood)}</div>
+        <p>${formatHelpRichText(copy.syntaxDoBody)}</p>
         <div class="help-command-note">${formatHelpRichText(copy.syntaxDoHint(syntaxDoItemLabel))}</div>
       </div>
       <div class="help-command-card help-command-card-bad">
         <div class="help-eyebrow">${escapeHtml(copy.syntaxDontLabel)}</div>
-        <h4><code>15 krat</code></h4>
-        <div class="help-command-input">15 krat</div>
-        <p>${escapeHtml(copy.syntaxDontBody)}</p>
+        <h4><code>${escapeHtml(examples.oneWordBad)}</code></h4>
+        <div class="help-command-input">${escapeHtml(examples.oneWordBad)}</div>
+        <p>${formatHelpRichText(copy.syntaxDontBody)}</p>
+      </div>
+    </div>
+    ${firstExampleCard ? `<div class="help-grid">${firstExampleCard}</div>` : ''}
+    <div class="help-grid">
+      <div class="help-command-card">
+        <div class="help-eyebrow">${escapeHtml(copy.syntaxBracketLabel)}</div>
+        <h4>${formatHelpRichText(copy.syntaxBracketTitle)}</h4>
+        <div class="help-command-input help-token-option">
+          <span class="help-token-main">${escapeHtml(suggestionMain)}</span>
+          ${suggestionAliases ? `<span class="help-token-aliases">${escapeHtml(suggestionAliases)}</span>` : ''}
+        </div>
+        <p>${formatHelpRichText(syntaxBracketBody)}</p>
+      </div>
+      <div class="help-command-card">
+        <div class="help-eyebrow">${escapeHtml(copy.syntaxSameItemLabel)}</div>
+        <h4>${formatHelpRichText(copy.syntaxSameItemTitle)}</h4>
+        <p>${formatHelpRichText(syntaxSameItemBody)}</p>
+        <div class="help-chip-row">${sameItemPills}</div>
+        <div class="help-command-note">${formatHelpRichText(copy.syntaxSameItemResult)}</div>
+        <div class="help-command-input">${escapeHtml(suggestionMain)}</div>
+        <div class="help-command-note">${formatHelpRichText(copy.syntaxSameItemHint)}</div>
       </div>
     </div>
     <div class="help-command-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxAddsLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxAddsTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxAddsTitle)}</h4>
       <div class="help-command-note">${escapeHtml(copy.syntaxAddsExistingLabel)}</div>
       <div class="help-command-input">${escapeHtml(addsExistingExample)}</div>
       <div class="help-command-note">${escapeHtml(copy.syntaxAddsInputLabel)}</div>
       <div class="help-command-input">${escapeHtml(addsInputExample)}</div>
       <div class="help-command-note">${escapeHtml(copy.syntaxAddsAfterLabel)}</div>
       <div class="help-command-input">${escapeHtml(addsResultExample)}</div>
-      <p>${formatHelpRichText(copy.syntaxAddsBody)}</p>
+      <p>${formatHelpRichText(syntaxAddsBody)}</p>
       <div class="help-inline-note">${formatHelpRichText(copy.syntaxAddsHint)}</div>
     </div>
     <div class="help-grid">
       <div class="help-command-card">
         <div class="help-eyebrow">${escapeHtml(copy.syntaxReverseLabel)}</div>
-        <h4>${escapeHtml(copy.syntaxReverseTitle)}</h4>
+        <h4>${formatHelpRichText(copy.syntaxReverseTitle)}</h4>
         <div class="help-command-input">${escapeHtml(reverseExamplePrimary)}</div>
         <div class="help-command-input">${escapeHtml(reverseExampleSecondary)}</div>
-        <p>${formatHelpRichText(copy.syntaxReverseBody)}</p>
+        <p>${formatHelpRichText(syntaxReverseBody)}</p>
         <div class="help-command-note">${formatHelpRichText(copy.syntaxReverseHint)}</div>
       </div>
       <div class="help-command-card">
         <div class="help-eyebrow">${escapeHtml(copy.syntaxCorrectionLabel)}</div>
-        <h4>${escapeHtml(copy.syntaxCorrectionTitle)}</h4>
+        <h4>${formatHelpRichText(copy.syntaxCorrectionTitle)}</h4>
         <div class="help-command-note">${escapeHtml(copy.syntaxCorrectionExistingLabel)}</div>
         <div class="help-command-input">${escapeHtml(correctionExistingExample)}</div>
         <div class="help-command-note">${escapeHtml(copy.syntaxCorrectionInputLabel)}</div>
@@ -6882,52 +7802,31 @@ function renderHelpSyntaxTab(copy = getHelpCopy()) {
         <div class="help-chip-row">${correctionChips}</div>
         <div class="help-command-note">${escapeHtml(copy.syntaxCorrectionAfterLabel)}</div>
         <div class="help-command-input">${escapeHtml(correctionResultExample)}</div>
-        <p>${formatHelpRichText(copy.syntaxCorrectionBody)}</p>
+        <p>${formatHelpRichText(syntaxCorrectionBody)}</p>
         <div class="help-command-note">${formatHelpRichText(copy.syntaxCorrectionHint)}</div>
-      </div>
-    </div>
-    ${firstExampleCard ? `<div class="help-grid">${firstExampleCard}</div>` : ''}
-    <div class="help-grid">
-      <div class="help-command-card">
-        <div class="help-eyebrow">${escapeHtml(copy.syntaxBracketLabel)}</div>
-        <h4>${escapeHtml(copy.syntaxBracketTitle)}</h4>
-        <div class="help-command-input help-token-option">
-          <span class="help-token-main">${escapeHtml(suggestionMain)}</span>
-          ${suggestionAliases ? `<span class="help-token-aliases">${escapeHtml(suggestionAliases)}</span>` : ''}
-        </div>
-        <p>${formatHelpRichText(copy.syntaxBracketBody)}</p>
-      </div>
-      <div class="help-command-card">
-        <div class="help-eyebrow">${escapeHtml(copy.syntaxSameItemLabel)}</div>
-        <h4>${escapeHtml(copy.syntaxSameItemTitle)}</h4>
-        <p>${formatHelpRichText(copy.syntaxSameItemBody)}</p>
-        <div class="help-chip-row">${sameItemPills}</div>
-        <div class="help-command-note">${escapeHtml(copy.syntaxSameItemResult)}</div>
-        <div class="help-command-input">${escapeHtml(suggestionMain)}</div>
-        <div class="help-command-note">${formatHelpRichText(copy.syntaxSameItemHint)}</div>
       </div>
     </div>
     <div class="help-command-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxPartsLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxPartsTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxPartsTitle)}</h4>
       <div class="help-command-input">${escapeHtml(partsExampleInput)}</div>
-      <p>${formatHelpRichText(copy.syntaxPartsBody)}</p>
-      <div class="help-command-note">${formatHelpRichText(copy.syntaxPartsHint)}</div>
+      <p>${formatHelpRichText(syntaxPartsBody)}</p>
+      <div class="help-command-note">${formatHelpRichText(syntaxPartsHint)}</div>
     </div>
     ${remainingExampleCards ? `<div class="help-grid">${remainingExampleCards}</div>` : ''}
     <div class="help-command-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxPreviewLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxPreviewTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxPreviewTitle)}</h4>
       <div class="help-command-note">${escapeHtml(copy.syntaxPreviewTypedLabel)}</div>
       <div class="help-command-input">${escapeHtml(previewInputExample)}</div>
       <div class="help-command-note">${escapeHtml(copy.syntaxPreviewResultLabel)}</div>
       <div class="help-command-input">${escapeHtml(previewExample)}</div>
-      <p>${formatHelpRichText(copy.syntaxPreviewBody)}</p>
+      <p>${formatHelpRichText(syntaxPreviewBody)}</p>
       <div class="help-inline-note">${formatHelpRichText(copy.syntaxPreviewHint)}</div>
     </div>
     <div class="help-command-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxLongLineLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxLongLineTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxLongLineTitle)}</h4>
       <div class="help-command-note">${escapeHtml(copy.syntaxPreviewTypedLabel)}</div>
       <div class="help-command-input">${escapeHtml(longLineInputExample)}</div>
       <div class="help-command-note">${escapeHtml(copy.syntaxChipsLabel)}</div>
@@ -6935,24 +7834,24 @@ function renderHelpSyntaxTab(copy = getHelpCopy()) {
       <div class="help-command-note">${escapeHtml(copy.syntaxPreviewResultLabel)}</div>
       <div class="help-command-input">${escapeHtml(longLinePreviewExample)}</div>
       <p>${formatHelpRichText(copy.syntaxLongLineBody)}</p>
-      <div class="help-inline-note">${formatHelpRichText(copy.syntaxLongLineHint)}</div>
+      <div class="help-inline-note">${formatHelpRichText(syntaxLongLineHint)}</div>
     </div>
     <div class="help-command-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxFreezerLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxFreezerTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxFreezerTitle)}</h4>
       <div class="help-command-note">${escapeHtml(copy.syntaxPreviewTypedLabel)}</div>
       <div class="help-command-input">${escapeHtml(freezerInputExample)}</div>
       <div class="help-command-note">${escapeHtml(copy.syntaxChipsLabel)}</div>
       <div class="help-chip-row">${freezerChips}</div>
       <div class="help-command-note">${escapeHtml(copy.syntaxPreviewResultLabel)}</div>
       <div class="help-command-input">${escapeHtml(freezerPreviewExample)}</div>
-      <p>${formatHelpRichText(copy.syntaxFreezerBody)}</p>
+      <p>${formatHelpRichText(syntaxFreezerBody)}</p>
       <div class="help-inline-note">${formatHelpRichText(syntaxFreezerHint)}</div>
       ${freezerEnabled ? '' : `<button type="button" class="help-jump-link" data-help-jump-tab="tips" data-help-jump-anchor="freezer">${escapeHtml(copy.syntaxFreezerJump || copy.rogoQualityJump)}</button>`}
     </div>
     <div id="helpSyntaxPracticeCard" class="help-command-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxPracticeLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxPracticeTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxPracticeTitle)}</h4>
       <p class="help-practice-body">${formatHelpRichText(practiceActive ? copy.syntaxPracticeActiveBody : copy.syntaxPracticeBody)}</p>
       <button
         id="helpSyntaxPracticeToggleBtn"
@@ -6963,12 +7862,12 @@ function renderHelpSyntaxTab(copy = getHelpCopy()) {
     </div>
     <div class="help-card">
       <div class="help-eyebrow">${escapeHtml(copy.tabs.syntax)}</div>
-      <h4>${escapeHtml(copy.syntaxRecapTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxRecapTitle)}</h4>
       <ul class="help-tip-list">${tips}</ul>
     </div>
     <div class="help-card">
       <div class="help-eyebrow">${escapeHtml(copy.syntaxReadyLabel)}</div>
-      <h4>${escapeHtml(copy.syntaxReadyTitle)}</h4>
+      <h4>${formatHelpRichText(copy.syntaxReadyTitle)}</h4>
       <p>${formatHelpRichText(copy.syntaxReadyBody)}</p>
       <div class="help-inline-note">${formatHelpRichText(copy.syntaxReadyHint(copy.tabs.tutorial))}</div>
     </div>
@@ -7052,7 +7951,7 @@ function renderHelpTipExample(tip = {}, copy = getHelpCopy()) {
 }
 
 function renderHelpTipsTab(copy = getHelpCopy()) {
-  const tips = copy.tips
+  const tips = buildAliasAwareTips(copy, getHelpAliasExampleContext())
     .map((tip) => `
       <li${tip.anchor ? ` data-help-anchor="${escapeHtml(tip.anchor)}"` : ''}>
         <div class="help-tip-badge">${escapeHtml(tip.badge)} · ${formatHelpRichText(tip.title)}</div>
@@ -7065,12 +7964,12 @@ function renderHelpTipsTab(copy = getHelpCopy()) {
   return `
     <div class="help-hero-card">
       <div class="help-eyebrow">${escapeHtml(copy.tabs.tips)}</div>
-      <h4>${escapeHtml(copy.tipsHeroTitle)}</h4>
+      <h4>${formatHelpRichText(copy.tipsHeroTitle)}</h4>
       <p>${formatHelpRichText(copy.tipsHeroBody)}</p>
     </div>
     <div class="help-tip-card">
       <div class="help-eyebrow">${escapeHtml(copy.tabs.tips)}</div>
-      <h4>${escapeHtml(copy.tipsOverviewTitle || copy.modalTitle)}</h4>
+      <h4>${formatHelpRichText(copy.tipsOverviewTitle || copy.modalTitle)}</h4>
       <ul class="help-tip-list">${tips}</ul>
     </div>
   `;
@@ -7257,11 +8156,31 @@ async function ensureTutorialProjectActive() {
   return true;
 }
 
+function setCmdValueSilently(value, { blur = false } = {}) {
+  if (!cmd) return;
+  suppressCmdFeedbackAutoDismiss = true;
+  try {
+    cmd.value = String(value || '');
+    cmd.dispatchEvent(new Event('input'));
+  } finally {
+    suppressCmdFeedbackAutoDismiss = false;
+  }
+  if (blur) cmd.blur();
+}
+
 function setTutorialCommandDraft(commandText) {
   if (!cmd) return;
-  cmd.value = commandText;
-  cmd.dispatchEvent(new Event('input'));
-  cmd.blur();
+  setCmdValueSilently(commandText);
+  focusElementWithoutScroll(cmd);
+  const len = cmd.value.length;
+  try {
+    cmd.setSelectionRange(len, len);
+  } catch {}
+  requestAnimationFrame(() => {
+    syncTutorialKeyboardMode();
+    scheduleTutorialSpotlightSync();
+    syncVisualViewport();
+  });
 }
 
 function populateTutorialCustomerDraft(name = tutorialState.customerName, { block = 'center' } = {}) {
@@ -7284,8 +8203,343 @@ function getTutorialCustomerCard(name = tutorialState.customerName) {
   return findGroupCardByName(name);
 }
 
+function getImportModalPanel() {
+  return importBackdrop?.querySelector('.modal') || null;
+}
+
+function getReorderModalPanel() {
+  return reorderBackdrop?.querySelector('.modal.reorder-modal') || null;
+}
+
+function getTutorialClipboardPreviewText() {
+  return String(tutorialState.clipboardPreviewText || '').trim();
+}
+
+function ensureTutorialImportPreviewMeasureEl() {
+  if (tutorialImportPreviewMeasureEl?.isConnected) return tutorialImportPreviewMeasureEl;
+  const el = document.createElement('div');
+  el.setAttribute('aria-hidden', 'true');
+  el.style.position = 'fixed';
+  el.style.left = '-99999px';
+  el.style.top = '0';
+  el.style.visibility = 'hidden';
+  el.style.pointerEvents = 'none';
+  el.style.whiteSpace = 'pre-wrap';
+  el.style.overflowWrap = 'anywhere';
+  el.style.wordBreak = 'break-word';
+  el.style.boxSizing = 'border-box';
+  document.body.appendChild(el);
+  tutorialImportPreviewMeasureEl = el;
+  return el;
+}
+
+function fitTutorialImportPreviewText() {
+  tutorialImportPreviewFitFrame = 0;
+  if (!importText) return;
+  const step = getCurrentTutorialStep();
+  if (!isTutorialClipboardReviewStep(step) || importBackdrop?.classList.contains('hidden')) {
+    importText.style.removeProperty('--tutorial-import-preview-font-size');
+    return;
+  }
+
+  const text = String(importText.value || '').trim();
+  if (!text) {
+    importText.style.removeProperty('--tutorial-import-preview-font-size');
+    return;
+  }
+
+  const reviewClipboardStep = step?.id === 'review-pasted-customers';
+  const styles = window.getComputedStyle(importText);
+  const width = importText.clientWidth;
+  const height = importText.clientHeight;
+  if (!width || !height) return;
+
+  const padX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
+  const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+  const innerWidth = Math.max(40, width - padX);
+  const innerHeight = Math.max(40, height - padY);
+  const minFontSize = 14;
+  const maxFontSize = Math.min(40, Math.max(22, innerWidth / 9));
+  const lineHeightRatio = 1.45;
+  const measureEl = ensureTutorialImportPreviewMeasureEl();
+  measureEl.style.display = reviewClipboardStep ? 'inline-block' : 'block';
+  measureEl.style.width = reviewClipboardStep ? 'auto' : `${innerWidth}px`;
+  measureEl.style.maxWidth = reviewClipboardStep ? 'none' : `${innerWidth}px`;
+  measureEl.style.padding = '0';
+  measureEl.style.border = '0';
+  measureEl.style.fontFamily = styles.fontFamily;
+  measureEl.style.fontWeight = styles.fontWeight;
+  measureEl.style.letterSpacing = styles.letterSpacing;
+  measureEl.style.whiteSpace = reviewClipboardStep ? 'pre' : 'pre-wrap';
+  measureEl.style.overflowWrap = reviewClipboardStep ? 'normal' : 'anywhere';
+  measureEl.style.wordBreak = reviewClipboardStep ? 'normal' : 'break-word';
+  measureEl.textContent = text;
+
+  let low = minFontSize;
+  let high = maxFontSize;
+  let best = minFontSize;
+  for (let i = 0; i < 12; i += 1) {
+    const mid = (low + high) / 2;
+    measureEl.style.fontSize = `${mid}px`;
+    measureEl.style.lineHeight = `${mid * lineHeightRatio}px`;
+    const fits = reviewClipboardStep
+      ? measureEl.scrollWidth <= innerWidth + 0.5
+      : measureEl.scrollHeight <= innerHeight + 0.5;
+    if (fits) {
+      best = mid;
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  importText.style.setProperty(
+    '--tutorial-import-preview-font-size',
+    `${Math.max(minFontSize, Math.floor(best * 10) / 10)}px`
+  );
+}
+
+function scheduleTutorialImportPreviewFit() {
+  if (tutorialImportPreviewFitFrame) return;
+  tutorialImportPreviewFitFrame = requestAnimationFrame(() => {
+    fitTutorialImportPreviewText();
+  });
+}
+
+function syncTutorialImportPreviewState(step = getCurrentTutorialStep()) {
+  if (!importText) return;
+  const tutorialPreview = isTutorialClipboardReviewStep(step);
+  importText.readOnly = tutorialPreview;
+  importText.setAttribute('aria-readonly', tutorialPreview ? 'true' : 'false');
+  importText.setAttribute('wrap', tutorialPreview ? 'off' : 'soft');
+  importText.spellcheck = !tutorialPreview;
+  importText.classList.toggle('tutorial-import-preview', tutorialPreview);
+  if (!tutorialPreview) {
+    importText.style.removeProperty('--tutorial-import-preview-font-size');
+    return;
+  }
+  importText.scrollTop = 0;
+  importText.scrollLeft = 0;
+  scheduleTutorialImportPreviewFit();
+}
+
+function getSelectedGroupNames() {
+  if (!list) return [];
+  const selectedIds = new Set(
+    [...selectedGroupIds]
+      .map((id) => Number(id))
+      .filter(Number.isFinite)
+  );
+  return [...list.querySelectorAll('.group[data-id][data-name]')]
+    .filter((card) => selectedIds.has(Number(card.dataset.id)))
+    .map((card) => String(card.dataset.name || '').trim())
+    .filter(Boolean);
+}
+
+function getTutorialPracticeMultiSelectCards() {
+  const importedNames = new Set(
+    TUTORIAL_SCREENSHOT_PREVIEW_NAMES
+      .map((name) => String(name || '').trim())
+      .filter(Boolean)
+  );
+  const practiceCards = getTutorialRenderedCustomerCards()
+    .filter((card) => !importedNames.has(String(card?.dataset?.name || '').trim()));
+  return practiceCards.length ? practiceCards : getTutorialMultiSelectCards();
+}
+
+function getTutorialMultiSelectCustomerNames() {
+  const renderedNames = getTutorialPracticeMultiSelectCards()
+    .map((card) => String(card?.dataset?.name || '').trim())
+    .filter(Boolean);
+  if (renderedNames.length) return [...new Set(renderedNames)];
+  return [...new Set([
+    tutorialState.renamedCustomerName,
+    tutorialState.secondCustomerName
+  ].map((name) => String(name || '').trim()).filter(Boolean))];
+}
+
+function getTutorialMultiSelectCards() {
+  const renamedCard = findGroupCardByName(String(tutorialState.renamedCustomerName || '').trim());
+  const secondCard = findGroupCardByName(String(tutorialState.secondCustomerName || '').trim());
+  return [renamedCard, secondCard].filter(Boolean);
+}
+
+function getTutorialMultiSelectExtraCards() {
+  const tutorialNames = new Set(getTutorialMultiSelectCustomerNames());
+  const importedCards = getTutorialScreenshotImportedCards()
+    .filter((card) => !tutorialNames.has(String(card?.dataset?.name || '').trim()));
+  if (importedCards.length) return importedCards;
+  return getTutorialRenderedCustomerCards()
+    .filter((card) => !tutorialNames.has(String(card?.dataset?.name || '').trim()));
+}
+
+function getTutorialPreferredMultiSelectStartCard() {
+  const practiceCards = getTutorialPracticeMultiSelectCards();
+  const renderedCards = getTutorialRenderedCustomerCards();
+  return renderedCards.find((card) => practiceCards.includes(card))
+    || practiceCards[0]
+    || null;
+}
+
+function getTutorialReorderMoveCustomerName() {
+  const renderedNames = getTutorialMultiSelectCards()
+    .map((card) => String(card?.dataset?.name || '').trim())
+    .filter(Boolean);
+  return renderedNames.find((name) => name === String(tutorialState.renamedCustomerName || '').trim())
+    || String(tutorialState.renamedCustomerName || getHelpCopy().tutorialDraftRenamedCustomer || '').trim();
+}
+
+function getTutorialReorderAnchorCustomerName() {
+  const moveName = getTutorialReorderMoveCustomerName();
+  return getTutorialMultiSelectCards()
+    .map((card) => String(card?.dataset?.name || '').trim())
+    .find((name) => name && name !== moveName)
+    || getHelpCopy().tutorialDraftCustomer;
+}
+
+function getTutorialReorderRowByName(name) {
+  const needle = String(name || '').trim();
+  if (!needle || !reorderList) return null;
+  return [...reorderList.querySelectorAll('.reorder-item[data-id]')]
+    .find((row) => String(row.querySelector('.reorder-name')?.textContent || '').trim() === needle)
+    || null;
+}
+
+function getTutorialReorderRow() {
+  return getTutorialReorderRowByName(getTutorialReorderMoveCustomerName());
+}
+
+function getTutorialReorderMoveButton() {
+  return getTutorialReorderRow()?.querySelector('.reorder-move[data-dir="up"]:not([disabled])')
+    || null;
+}
+
+function getTutorialReorderAnchorButton() {
+  return getTutorialReorderRowByName(getTutorialReorderAnchorCustomerName())
+    ?.querySelector('.reorder-move[data-dir="down"]:not([disabled])')
+    || null;
+}
+
+function getTutorialReorderTargetNames() {
+  return [
+    getTutorialReorderMoveCustomerName(),
+    getTutorialReorderAnchorCustomerName()
+  ].map((name) => String(name || '').trim()).filter(Boolean);
+}
+
+function getTutorialReorderBottomButtons() {
+  return getTutorialReorderTargetNames()
+    .map((name) => getTutorialReorderRowByName(name)?.querySelector('.reorder-move[data-dir="down"]:not([disabled])') || null)
+    .filter(Boolean);
+}
+
+function isTutorialReorderTargetAtBottom({ groupId = null, name = '' } = {}) {
+  const order = getStoredGroupOrder();
+  if (!order.length) return false;
+
+  const numericGroupId = Number(groupId);
+  if (Number.isFinite(numericGroupId)) {
+    return Number(order[order.length - 1]) === numericGroupId;
+  }
+
+  const needle = String(name || '').trim();
+  if (!needle || !reorderList) return false;
+  const rows = [...reorderList.querySelectorAll('.reorder-item[data-id]')];
+  if (!rows.length) return false;
+  const lastRow = rows[rows.length - 1];
+  return String(lastRow?.querySelector('.reorder-name')?.textContent || '').trim() === needle;
+}
+
+function getTutorialReorderInteractiveElements() {
+  return [
+    ...getTutorialReorderTargetNames().map((name) => getTutorialReorderRowByName(name)),
+    ...getTutorialReorderBottomButtons()
+  ].filter(Boolean);
+}
+
+function getExportRouteActionRow() {
+  return exportRouteTitle?.closest('.route-action-row')
+    || exportRouteBtn?.closest('.route-action-row')
+    || null;
+}
+
+function getImportScreenshotRouteActionRow() {
+  return importScreenshotTitle?.closest('.route-action-row')
+    || importScreenshotBtn?.closest('.route-action-row')
+    || null;
+}
+
+function getReorderRouteActionRow() {
+  return reorderTitle?.closest('.route-action-row')
+    || reorderCardsBtn?.closest('.route-action-row')
+    || null;
+}
+
+function getStartMultiSelectRouteActionRow() {
+  return startMultiSelectTitle?.closest('.route-action-row')
+    || startMultiSelectBtn?.closest('.route-action-row')
+    || null;
+}
+
+function getTutorialRemainingMultiSelectCard() {
+  const cards = getTutorialMultiSelectExtraCards();
+  const selectedNames = new Set(getSelectedGroupNames());
+  return cards.find((card) => !selectedNames.has(String(card.dataset.name || '').trim()))
+    || cards[1]
+    || cards[0]
+    || null;
+}
+
+function getTutorialScreenshotPreviewPanel() {
+  return tutorialScreenshotPreviewModal || tutorialScreenshotPreviewBackdrop || null;
+}
+
+function getTutorialScreenshotReadingPanel() {
+  return screenshotLoadingBackdrop?.querySelector('.screenshot-loading-modal') || screenshotLoadingBackdrop || null;
+}
+
+function getTutorialScreenshotImportedCards() {
+  return TUTORIAL_SCREENSHOT_PREVIEW_NAMES
+    .map((name) => findGroupCardByName(name))
+    .filter(Boolean);
+}
+
+function tutorialSelectionIncludesPracticeAndExtraCustomers(selectedGroupNames = [], { requiredPracticeName = '' } = {}) {
+  const selectedNames = new Set(
+    (Array.isArray(selectedGroupNames) ? selectedGroupNames : [])
+      .map((name) => String(name || '').trim())
+      .filter(Boolean)
+  );
+  const tutorialNames = getTutorialMultiSelectCards()
+    .map((card) => String(card?.dataset?.name || '').trim())
+    .filter(Boolean);
+  const practiceNames = requiredPracticeName
+    ? tutorialNames.filter((name) => name === String(requiredPracticeName || '').trim())
+    : tutorialNames;
+  const extraNames = getTutorialMultiSelectExtraCards()
+    .map((card) => String(card?.dataset?.name || '').trim())
+    .filter(Boolean);
+  return practiceNames.some((name) => selectedNames.has(name))
+    && extraNames.some((name) => selectedNames.has(name));
+}
+
 function getFreezerSettingRow() {
   return freezerToggle?.closest('.setting-row') || null;
+}
+
+function getHelpPositionSettingRow() {
+  return helpPositionToggle?.closest('.setting-row') || null;
+}
+
+function getAllTotalsSettingRow() {
+  return allTotalsToggle?.closest('.setting-row') || null;
+}
+
+function getTutorialUsefulSettingsRows() {
+  return [
+    getHelpPositionSettingRow(),
+    getAllTotalsSettingRow()
+  ].filter(Boolean);
 }
 
 function shouldPinTutorialNewGroupToTop() {
@@ -7294,16 +8548,28 @@ function shouldPinTutorialNewGroupToTop() {
   return stepId === 'create-customer' || stepId === 'create-second-customer';
 }
 
+function isTutorialNewGroupCreationStep(stepId = getCurrentTutorialStep()?.id) {
+  return stepId === 'create-customer' || stepId === 'create-second-customer';
+}
+
 function getTutorialSteps() {
   const copy = getHelpCopy();
+  const aliasExamples = getHelpAliasExampleContext();
+  const tutorialText = buildAliasAwareTutorialText(copy, aliasExamples);
   const routeName = tutorialState.projectName || copy.tutorialDraftRoute;
   const customerName = tutorialState.customerName || copy.tutorialDraftCustomer;
   const secondCustomerName = tutorialState.secondCustomerName || copy.tutorialDraftSecondCustomer;
   const renamedName = tutorialState.renamedCustomerName || copy.tutorialDraftRenamedCustomer;
+  const multiSelectPartnerName = getTutorialMultiSelectCards()
+    .map((card) => String(card?.dataset?.name || '').trim())
+    .find((name) => name && name !== renamedName)
+    || copy.tutorialDraftCustomer;
+  const reorderMoveName = getTutorialReorderMoveCustomerName() || renamedName;
+  const reorderAnchorName = getTutorialReorderAnchorCustomerName() || multiSelectPartnerName;
   const freezerEnabled = isFreezerEnabled();
   const initialFreezerEnabled = !!tutorialState.initialFreezerEnabled;
 
-  return [
+  const steps = [
     {
       id: 'create-project',
       label: copy.tutorialStatus(1, HELP_TUTORIAL_STEP_COUNT),
@@ -7446,8 +8712,8 @@ function getTutorialSteps() {
       id: 'first-command',
       label: copy.tutorialStatus(8, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepFirstCommandTitle,
-      body: copy.tutorialStepFirstCommandBody,
-      hint: copy.tutorialStepFirstCommandHint,
+      body: tutorialText.firstCommandBody,
+      hint: tutorialText.firstCommandHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
         closeSidePanel();
@@ -7455,7 +8721,7 @@ function getTutorialSteps() {
         selectedMode = 'geleverd';
         selectedStorage = 'main';
         await load();
-        setTutorialCommandDraft(HELP_TUTORIAL_FIRST_COMMAND);
+        setTutorialCommandDraft(aliasExamples.tutorialFirstCommand);
       }
     },
     {
@@ -7478,7 +8744,7 @@ function getTutorialSteps() {
       id: 'second-command',
       label: copy.tutorialStatus(10, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepSecondCommandTitle,
-      body: copy.tutorialStepSecondCommandBody,
+      body: tutorialText.secondCommandBody,
       hint: copy.tutorialStepSecondCommandHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
@@ -7487,7 +8753,7 @@ function getTutorialSteps() {
         selectedMode = 'geleverd';
         selectedStorage = 'main';
         await load();
-        setTutorialCommandDraft(HELP_TUTORIAL_SECOND_COMMAND);
+        setTutorialCommandDraft(aliasExamples.tutorialSecondCommand);
       }
     },
     {
@@ -7604,7 +8870,7 @@ function getTutorialSteps() {
       id: 'freezer-command',
       label: copy.tutorialStatus(17, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepFreezerCommandTitle,
-      body: copy.tutorialStepFreezerCommandBody,
+      body: tutorialText.freezerCommandBody,
       hint: copy.tutorialStepFreezerCommandHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
@@ -7613,14 +8879,14 @@ function getTutorialSteps() {
         selectedMode = 'geleverd';
         selectedStorage = 'freezer';
         await load();
-        setTutorialCommandDraft(HELP_TUTORIAL_FREEZER_COMMAND);
+        setTutorialCommandDraft(aliasExamples.tutorialFreezerCommand);
       }
     },
     {
       id: 'review-freezer-command',
       label: copy.tutorialStatus(18, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepReviewFreezerCommandTitle,
-      body: copy.tutorialStepReviewFreezerCommandBody(customerName),
+      body: tutorialText.reviewFreezerCommandBody(customerName),
       hint: copy.tutorialStepReviewFreezerCommandHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
@@ -7687,8 +8953,8 @@ function getTutorialSteps() {
       id: 'second-customer-command',
       label: copy.tutorialStatus(22, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepSecondCustomerCommandTitle,
-      body: copy.tutorialStepSecondCustomerCommandBody,
-      hint: copy.tutorialStepSecondCustomerCommandHint,
+      body: tutorialText.secondCustomerCommandBody,
+      hint: tutorialText.secondCustomerCommandHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
         closeSidePanel();
@@ -7696,7 +8962,7 @@ function getTutorialSteps() {
         selectedMode = 'geleverd';
         selectedStorage = 'main';
         await load();
-        setTutorialCommandDraft(HELP_TUTORIAL_SECOND_CUSTOMER_COMMAND);
+        setTutorialCommandDraft(aliasExamples.tutorialSecondCustomerCommand);
       }
     },
     {
@@ -7704,7 +8970,7 @@ function getTutorialSteps() {
       label: copy.tutorialStatus(23, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepReviewSecondCustomerCommandTitle,
       body: copy.tutorialStepReviewSecondCustomerCommandBody(customerName),
-      hint: copy.tutorialStepReviewSecondCustomerCommandHint,
+      hint: tutorialText.reviewSecondCustomerCommandHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
         closeSidePanel();
@@ -7735,7 +9001,7 @@ function getTutorialSteps() {
       id: 'return-command',
       label: copy.tutorialStatus(25, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepReturnCommandTitle,
-      body: copy.tutorialStepReturnCommandBody,
+      body: tutorialText.returnCommandBody,
       hint: copy.tutorialStepReturnCommandHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
@@ -7744,7 +9010,7 @@ function getTutorialSteps() {
         selectedMode = 'retour';
         selectedStorage = 'main';
         await load();
-        setTutorialCommandDraft(HELP_TUTORIAL_RETURN_COMMAND);
+        setTutorialCommandDraft(aliasExamples.tutorialReturnCommand);
       }
     },
     {
@@ -7885,7 +9151,7 @@ function getTutorialSteps() {
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
         closeSidePanel();
-        selectedGroup = null;
+        selectedGroup = renamedName;
         selectedMode = null;
         selectedStorage = 'main';
         await load();
@@ -7901,13 +9167,161 @@ function getTutorialSteps() {
       }
     },
     {
-      id: 'open-side-panel-for-delete',
+      id: 'start-multi-select-from-card',
       label: copy.tutorialStatus(34, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepOpenMultiSelectPanelTitle,
+      body: copy.tutorialStepOpenMultiSelectPanelBody,
+      hint: copy.tutorialStepOpenMultiSelectPanelHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        exitSelectionMode();
+        tutorialState.multiSelectStartName = '';
+        closeSidePanel();
+        selectedGroup = renamedName;
+        selectedMode = null;
+        selectedStorage = 'main';
+        await load();
+        refreshHistoryTimestampLabels(document);
+        refreshHistoryInputLabels(document);
+        scheduleHistoryRefresh();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            getTutorialPreferredMultiSelectStartCard()?.scrollIntoView?.({
+              block: 'center',
+              inline: 'nearest',
+              behavior: 'auto'
+            });
+            scheduleTutorialSpotlightSync();
+          });
+        });
+      }
+    },
+    {
+      id: 'select-second-customer-for-copy',
+      label: copy.tutorialStatus(35, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepStartMultiSelectTitle,
+      body: copy.tutorialStepStartMultiSelectBody(multiSelectPartnerName, renamedName),
+      hint: copy.tutorialStepStartMultiSelectHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        if (!selectionMode || getSelectedGroupNames().length !== 1) {
+          tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
+          tutorialStepEnteredId = '';
+          await activateCurrentTutorialStep({ force: true });
+          return;
+        }
+        closeImportModal();
+        closeSidePanel();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            list?.scrollTo?.({ top: 0, behavior: 'auto' });
+            scheduleTutorialSpotlightSync();
+          });
+        });
+      }
+    },
+    {
+      id: 'review-both-selected-customers',
+      label: copy.tutorialStatus(36, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewSelectedCustomersTitle,
+      body: copy.tutorialStepReviewSelectedCustomersBody(multiSelectPartnerName, renamedName),
+      hint: copy.tutorialStepReviewSelectedCustomersHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        if (
+          !selectionMode
+          || !tutorialSelectionIncludesPracticeAndExtraCustomers(getSelectedGroupNames(), {
+            requiredPracticeName: tutorialState.multiSelectStartName
+          })
+        ) {
+          tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
+          tutorialStepEnteredId = '';
+          await activateCurrentTutorialStep({ force: true });
+          return;
+        }
+        closeImportModal();
+        closeSidePanel();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            list?.scrollTo?.({ top: 0, behavior: 'auto' });
+            scheduleTutorialSpotlightSync();
+          });
+        });
+      }
+    },
+    {
+      id: 'copy-selected-customers',
+      label: copy.tutorialStatus(37, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepCopySelectedCustomersTitle,
+      body: copy.tutorialStepCopySelectedCustomersBody(multiSelectPartnerName, renamedName),
+      hint: copy.tutorialStepCopySelectedCustomersHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        if (
+          !selectionMode
+          || !tutorialSelectionIncludesPracticeAndExtraCustomers(getSelectedGroupNames(), {
+            requiredPracticeName: tutorialState.multiSelectStartName
+          })
+        ) {
+          tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
+          tutorialStepEnteredId = '';
+          await activateCurrentTutorialStep({ force: true });
+          return;
+        }
+        closeImportModal();
+        closeSidePanel();
+        requestAnimationFrame(() => {
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'paste-copied-customers',
+      label: copy.tutorialStatus(38, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepPasteCopiedCustomersTitle,
+      body: copy.tutorialStepPasteCopiedCustomersBody,
+      hint: copy.tutorialStepPasteCopiedCustomersHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        const previewText = getTutorialClipboardPreviewText() || await buildSelectedCardsText();
+        tutorialState.clipboardPreviewText = previewText;
+        closeSidePanel();
+        openImportModal({ clearValue: true, focus: false, value: previewText });
+        importText?.blur();
+        scheduleTutorialImportPreviewFit();
+        await advanceTutorialStep();
+      }
+    },
+    {
+      id: 'review-pasted-customers',
+      label: copy.tutorialStatus(39, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewPastedCustomersTitle,
+      body: copy.tutorialStepReviewPastedCustomersBody,
+      hint: copy.tutorialStepReviewPastedCustomersHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        const previewText = getTutorialClipboardPreviewText() || await buildSelectedCardsText();
+        tutorialState.clipboardPreviewText = previewText;
+        closeSidePanel();
+        openImportModal({ clearValue: false, focus: false, value: previewText });
+        importText?.blur();
+        requestAnimationFrame(() => {
+          scheduleTutorialImportPreviewFit();
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'open-side-panel-for-delete',
+      label: copy.tutorialStatus(40, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepOpenPanelTitle,
       body: copy.tutorialStepOpenPanelBody,
       hint: copy.tutorialStepOpenPanelHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        exitSelectionMode();
         closeSidePanel();
         selectedGroup = renamedName;
         selectedMode = null;
@@ -7917,13 +9331,427 @@ function getTutorialSteps() {
       }
     },
     {
+      id: 'expand-route-options',
+      label: copy.tutorialStatus(41, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepExpandRouteOptionsTitle,
+      body: copy.tutorialStepExpandRouteOptionsBody,
+      hint: copy.tutorialStepExpandRouteOptionsHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        openSidePanel();
+        openProjectMenuId = null;
+        openTemplateMenuId = null;
+        createProjectModeMenuOpen = false;
+        routeActionsMenuOpen = false;
+        settingsSectionPinned = false;
+        renderProjectList();
+        renderTemplateList();
+        renderCreateProjectModeControls();
+        renderRouteActionsMenu();
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          routeActionsMenuBtn?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'review-expanded-route-options',
+      label: copy.tutorialStatus(42, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewExpandedRouteOptionsTitle,
+      body: copy.tutorialStepReviewExpandedRouteOptionsBody,
+      hint: copy.tutorialStepReviewExpandedRouteOptionsHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        openSidePanel();
+        openProjectMenuId = null;
+        openTemplateMenuId = null;
+        createProjectModeMenuOpen = false;
+        routeActionsMenuOpen = true;
+        settingsSectionPinned = false;
+        renderProjectList();
+        renderTemplateList();
+        renderCreateProjectModeControls();
+        renderRouteActionsMenu();
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          routeActionsMenu?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'review-route-action-multi-select',
+      label: copy.tutorialStatus(43, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewRouteActionMultiSelectTitle,
+      body: copy.tutorialStepReviewRouteActionMultiSelectBody,
+      hint: copy.tutorialStepReviewRouteActionMultiSelectHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        openSidePanel();
+        openProjectMenuId = null;
+        openTemplateMenuId = null;
+        createProjectModeMenuOpen = false;
+        routeActionsMenuOpen = true;
+        settingsSectionPinned = false;
+        renderProjectList();
+        renderTemplateList();
+        renderCreateProjectModeControls();
+        renderRouteActionsMenu();
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          getStartMultiSelectRouteActionRow()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'review-route-action-export',
+      label: copy.tutorialStatus(44, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewRouteActionExportTitle,
+      body: copy.tutorialStepReviewRouteActionExportBody,
+      hint: copy.tutorialStepReviewRouteActionExportHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        closeTutorialScreenshotImportDemoUi();
+        openSidePanel();
+        openProjectMenuId = null;
+        openTemplateMenuId = null;
+        createProjectModeMenuOpen = false;
+        routeActionsMenuOpen = true;
+        settingsSectionPinned = false;
+        renderProjectList();
+        renderTemplateList();
+        renderCreateProjectModeControls();
+        renderRouteActionsMenu();
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          getExportRouteActionRow()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'review-route-action-screenshot',
+      label: copy.tutorialStatus(45, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewRouteActionScreenshotTitle,
+      body: copy.tutorialStepReviewRouteActionScreenshotBody,
+      hint: copy.tutorialStepReviewRouteActionScreenshotHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        closeTutorialScreenshotImportDemoUi();
+        openSidePanel();
+        openProjectMenuId = null;
+        openTemplateMenuId = null;
+        createProjectModeMenuOpen = false;
+        routeActionsMenuOpen = true;
+        settingsSectionPinned = false;
+        renderProjectList();
+        renderTemplateList();
+        renderCreateProjectModeControls();
+        renderRouteActionsMenu();
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          getImportScreenshotRouteActionRow()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'open-screenshot-import-demo',
+      label: copy.tutorialStatus(46, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepOpenScreenshotImportTitle,
+      body: copy.tutorialStepOpenScreenshotImportBody,
+      hint: copy.tutorialStepOpenScreenshotImportHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        closeTutorialScreenshotImportDemoUi();
+        openSidePanel();
+        openProjectMenuId = null;
+        openTemplateMenuId = null;
+        createProjectModeMenuOpen = false;
+        routeActionsMenuOpen = true;
+        settingsSectionPinned = false;
+        renderProjectList();
+        renderTemplateList();
+        renderCreateProjectModeControls();
+        renderRouteActionsMenu();
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          getImportScreenshotRouteActionRow()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'review-screenshot-import-example',
+      label: copy.tutorialStatus(47, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewScreenshotImportImageTitle,
+      body: copy.tutorialStepReviewScreenshotImportImageBody,
+      hint: copy.tutorialStepReviewScreenshotImportImageHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        if (tutorialScreenshotPreviewBackdrop?.classList.contains('hidden')) {
+          tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
+          tutorialStepEnteredId = '';
+          await activateCurrentTutorialStep({ force: true });
+          return;
+        }
+        requestAnimationFrame(() => {
+          getTutorialScreenshotPreviewPanel()?.scrollIntoView?.({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'read-screenshot-import-demo',
+      label: copy.tutorialStatus(48, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReadScreenshotImportTitle,
+      body: copy.tutorialStepReadScreenshotImportBody,
+      hint: copy.tutorialStepReadScreenshotImportHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        tutorialState.screenshotImportReadReady = false;
+        closeTutorialScreenshotPreview();
+        openTutorialScreenshotReadingModal();
+        renderTutorialOverlay();
+        requestAnimationFrame(() => {
+          scheduleTutorialSpotlightSync();
+        });
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 1440);
+        });
+        if (!tutorialState.active || getCurrentTutorialStep()?.id !== 'read-screenshot-import-demo') return;
+        setTutorialScreenshotReadingModalStatus(getHelpCopy().tutorialScreenshotReadingStatusB || '');
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 1360);
+        });
+        if (!tutorialState.active || getCurrentTutorialStep()?.id !== 'read-screenshot-import-demo') return;
+        setTutorialScreenshotReadingModalStatus(getHelpCopy().tutorialScreenshotReadingStatusC || '');
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 1280);
+        });
+        if (!tutorialState.active || getCurrentTutorialStep()?.id !== 'read-screenshot-import-demo') return;
+        tutorialState.screenshotImportReadReady = true;
+        renderTutorialOverlay();
+        scheduleTutorialSpotlightSync();
+      }
+    },
+    {
+      id: 'review-screenshot-import-results',
+      label: copy.tutorialStatus(49, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewScreenshotImportResultsTitle,
+      body: copy.tutorialStepReviewScreenshotImportResultsBody,
+      hint: copy.tutorialStepReviewScreenshotImportResultsHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeTutorialScreenshotReadingModal();
+        const dialogPromise = showTutorialScreenshotImportResultsDialog();
+        renderTutorialOverlay();
+        requestAnimationFrame(() => {
+          actionDialogModal?.scrollIntoView?.({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+        const dialog = await dialogPromise;
+        if (!dialog?.confirmed) return;
+        if (!tutorialState.active || getCurrentTutorialStep()?.id !== 'review-screenshot-import-results') return;
+        const importResult = await importTutorialScreenshotPreviewNamesIntoRoute();
+        feedback.textContent = t('importSuccess', importResult.importedNames.length);
+        if (!tutorialState.active || getCurrentTutorialStep()?.id !== 'review-screenshot-import-results') return;
+        await advanceTutorialStep();
+      }
+    },
+    {
+      id: 'review-imported-screenshot-customers',
+      label: copy.tutorialStatus(50, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewImportedScreenshotCustomersTitle,
+      body: copy.tutorialStepReviewImportedScreenshotCustomersBody,
+      hint: copy.tutorialStepReviewImportedScreenshotCustomersHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeTutorialScreenshotImportDemoUi();
+        closeSidePanel();
+        selectedGroup = null;
+        selectedMode = null;
+        selectedStorage = 'main';
+        await load();
+        scrollCardByNameToTopSoon(TUTORIAL_SCREENSHOT_PREVIEW_NAMES[0]);
+        requestAnimationFrame(() => {
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'open-reorder-customers',
+      label: copy.tutorialStatus(51, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepOpenReorderTitle,
+      body: copy.tutorialStepOpenReorderBody,
+      hint: copy.tutorialStepOpenReorderHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
+        closeTutorialScreenshotImportDemoUi();
+        openSidePanel();
+        openProjectMenuId = null;
+        openTemplateMenuId = null;
+        createProjectModeMenuOpen = false;
+        routeActionsMenuOpen = true;
+        settingsSectionPinned = false;
+        renderProjectList();
+        renderTemplateList();
+        renderCreateProjectModeControls();
+        renderRouteActionsMenu();
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          getReorderRouteActionRow()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'review-reorder-modal',
+      label: copy.tutorialStatus(52, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewReorderModalTitle,
+      body: copy.tutorialStepReviewReorderModalBody,
+      hint: copy.tutorialStepReviewReorderModalHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        if (reorderBackdrop?.classList.contains('hidden')) {
+          tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
+          tutorialStepEnteredId = '';
+          await activateCurrentTutorialStep({ force: true });
+          return;
+        }
+        requestAnimationFrame(() => {
+          getReorderModalPanel()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'move-reordered-customer',
+      label: copy.tutorialStatus(53, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepMoveReorderTitle,
+      body: copy.tutorialStepMoveReorderBody(reorderMoveName, reorderAnchorName),
+      hint: copy.tutorialStepMoveReorderHint(reorderMoveName, reorderAnchorName),
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        if (reorderBackdrop?.classList.contains('hidden')) {
+          tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
+          tutorialStepEnteredId = '';
+          await activateCurrentTutorialStep({ force: true });
+          return;
+        }
+        requestAnimationFrame(() => {
+          getTutorialReorderRow()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'save-reordered-customers',
+      label: copy.tutorialStatus(54, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepSaveReorderTitle,
+      body: copy.tutorialStepSaveReorderBody,
+      hint: copy.tutorialStepSaveReorderHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        if (reorderBackdrop?.classList.contains('hidden')) {
+          tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
+          tutorialStepEnteredId = '';
+          await activateCurrentTutorialStep({ force: true });
+          return;
+        }
+        requestAnimationFrame(() => {
+          saveReorder?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'auto'
+          });
+          scheduleTutorialSpotlightSettleSync([0, 60, 140, 260]);
+        });
+      }
+    },
+    {
+      id: 'review-reordered-customers',
+      label: copy.tutorialStatus(55, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewReorderedCustomersTitle,
+      body: copy.tutorialStepReviewReorderedCustomersBody(reorderMoveName, reorderAnchorName),
+      hint: copy.tutorialStepReviewReorderedCustomersHint,
+      async onEnter() {
+        if (!(await ensureTutorialProjectActive())) return;
+        closeSidePanel();
+        selectedGroup = null;
+        selectedMode = null;
+        await load();
+        scrollCardByNameToTopSoon(reorderMoveName);
+        requestAnimationFrame(() => {
+          scheduleTutorialSpotlightSync();
+          requestAnimationFrame(() => {
+            scheduleTutorialSpotlightSync();
+          });
+        });
+      }
+    },
+    {
       id: 'open-route-dots',
-      label: copy.tutorialStatus(35, HELP_TUTORIAL_STEP_COUNT),
+      label: copy.tutorialStatus(56, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepOpenRouteMenuTitle,
       body: copy.tutorialStepOpenRouteMenuBody(routeName),
       hint: copy.tutorialStepOpenRouteMenuHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
         openSidePanel();
         openProjectMenuId = null;
         openTemplateMenuId = null;
@@ -7947,12 +9775,13 @@ function getTutorialSteps() {
     },
     {
       id: 'delete-route',
-      label: copy.tutorialStatus(36, HELP_TUTORIAL_STEP_COUNT),
+      label: copy.tutorialStatus(57, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepDeleteTitle,
       body: copy.tutorialStepDeleteBody,
       hint: copy.tutorialStepDeleteHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
         openSidePanel();
         openProjectMenuId = tutorialState.projectId;
         openTemplateMenuId = null;
@@ -7976,12 +9805,13 @@ function getTutorialSteps() {
     },
     {
       id: 'confirm-delete-route',
-      label: copy.tutorialStatus(37, HELP_TUTORIAL_STEP_COUNT),
+      label: copy.tutorialStatus(58, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepDeleteConfirmTitle,
       body: copy.tutorialStepDeleteConfirmBody,
       hint: copy.tutorialStepDeleteConfirmHint,
       async onEnter() {
         if (!(await ensureTutorialProjectActive())) return;
+        closeImportModal();
         openSidePanel();
         requestAnimationFrame(() => {
           scheduleTutorialSpotlightSync();
@@ -7990,11 +9820,12 @@ function getTutorialSteps() {
     },
     {
       id: 'review-route-deleted',
-      label: copy.tutorialStatus(38, HELP_TUTORIAL_STEP_COUNT),
+      label: copy.tutorialStatus(59, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepReviewDeleteTitle,
       body: copy.tutorialStepReviewDeleteBody(routeName),
       hint: copy.tutorialStepReviewDeleteHint,
       async onEnter() {
+        closeImportModal();
         openSidePanel();
         openProjectMenuId = null;
         openTemplateMenuId = null;
@@ -8024,7 +9855,7 @@ function getTutorialSteps() {
     },
     {
       id: 'open-settings-for-final-freezer',
-      label: copy.tutorialStatus(39, HELP_TUTORIAL_STEP_COUNT),
+      label: copy.tutorialStatus(60, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepOpenFinalFreezerSettingsTitle,
       body: copy.tutorialStepOpenFinalFreezerSettingsBody,
       hint: copy.tutorialStepOpenFinalFreezerSettingsHint,
@@ -8041,7 +9872,7 @@ function getTutorialSteps() {
     },
     {
       id: 'final-freezer-choice',
-      label: copy.tutorialStatus(40, HELP_TUTORIAL_STEP_COUNT),
+      label: copy.tutorialStatus(61, HELP_TUTORIAL_STEP_COUNT),
       title: copy.tutorialStepFinalFreezerChoiceTitle,
       body: copy.tutorialStepFinalFreezerChoiceBody(freezerEnabled, initialFreezerEnabled),
       hint: copy.tutorialStepFinalFreezerChoiceHint,
@@ -8059,21 +9890,77 @@ function getTutorialSteps() {
           scheduleTutorialSpotlightSync();
         });
       }
+    },
+    {
+      id: 'review-useful-settings',
+      label: copy.tutorialStatus(62, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepUsefulSettingsTitle,
+      body: copy.tutorialStepUsefulSettingsBody,
+      hint: copy.tutorialStepUsefulSettingsHint,
+      async onEnter() {
+        openSidePanel();
+        settingsSectionPinned = true;
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          updatePanelSettingsButton();
+          getHelpPositionSettingRow()?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+          });
+          scheduleTutorialSpotlightSync();
+        });
+      }
+    },
+    {
+      id: 'review-settings-overview',
+      label: copy.tutorialStatus(63, HELP_TUTORIAL_STEP_COUNT),
+      title: copy.tutorialStepReviewSettingsTitle,
+      body: copy.tutorialStepReviewSettingsBody,
+      hint: copy.tutorialStepReviewSettingsHint,
+      async onEnter() {
+        openSidePanel();
+        settingsSectionPinned = true;
+        applyPanelSearchFilter();
+        requestAnimationFrame(() => {
+          updatePanelSettingsButton();
+          sidePanel?.scrollTo({ top: 0, behavior: 'auto' });
+          scheduleTutorialSpotlightSync();
+        });
+      }
     }
   ];
+  const movedStepIds = new Set([
+    'start-multi-select-from-card',
+    'select-second-customer-for-copy',
+    'review-both-selected-customers',
+    'copy-selected-customers',
+    'paste-copied-customers',
+    'review-pasted-customers'
+  ]);
+  const reorderedSteps = steps.filter((step) => !movedStepIds.has(step.id));
+  const insertAfterIndex = reorderedSteps.findIndex((step) => step.id === 'review-reordered-customers');
+  const insertIndex = insertAfterIndex === -1 ? reorderedSteps.length : insertAfterIndex + 1;
+  reorderedSteps.splice(insertIndex, 0, ...steps.filter((step) => movedStepIds.has(step.id)));
+  return reorderedSteps.map((step, index) => ({
+    ...step,
+    label: copy.tutorialStatus(index + 1, HELP_TUTORIAL_STEP_COUNT)
+  }));
 }
 
 function getCurrentTutorialStep() {
   if (!tutorialState.active) return null;
   const copy = getHelpCopy();
+  const tutorialText = buildAliasAwareTutorialText(copy, getHelpAliasExampleContext());
   const steps = getTutorialSteps();
   if (tutorialState.stepIndex >= steps.length) {
+    const earlyDeleteComplete = tutorialState.completionVariant === 'early-delete';
     return {
       id: 'complete',
       label: copy.tutorialCompleteLabel,
-      title: copy.tutorialCompleteTitle,
-      body: copy.tutorialCompleteBody,
-      hint: copy.tutorialCompleteHint
+      title: earlyDeleteComplete ? copy.tutorialEarlyDeleteCompleteTitle : copy.tutorialCompleteTitle,
+      body: earlyDeleteComplete ? copy.tutorialEarlyDeleteCompleteBody : tutorialText.completeBody,
+      hint: earlyDeleteComplete ? copy.tutorialEarlyDeleteCompleteHint : copy.tutorialCompleteHint
     };
   }
   return steps[tutorialState.stepIndex];
@@ -8105,6 +9992,12 @@ function resolveTutorialTarget() {
     case 'review-renamed-customer':
     case 'review-before-delete':
       return getTutorialCustomerCard();
+    case 'start-multi-select-from-card':
+      return getTutorialPreferredMultiSelectStartCard() || getTutorialCustomerCard() || null;
+    case 'select-second-customer-for-copy':
+      return getTutorialRemainingMultiSelectCard();
+    case 'review-both-selected-customers':
+      return document.getElementById('selectionBar') || selCopy || null;
     case 'select-mode':
     case 'select-second-mode':
       return getTutorialCustomerCard()?.querySelector('.mode[data-mode="geleverd"]') || null;
@@ -8118,6 +10011,8 @@ function resolveTutorialTarget() {
     case 'return-command':
     case 'freezer-command':
       return document.querySelector('.cli-row') || cmd || cliContainer;
+    case 'copy-selected-customers':
+      return selCopy || document.getElementById('selectionBar') || null;
     case 'rename-customer': {
       const card = getTutorialCustomerCard();
       return card?.querySelector('.group-title-wrap.editing .group-title-input')
@@ -8133,18 +10028,54 @@ function resolveTutorialTarget() {
     case 'open-side-panel-for-freezer':
     case 'open-side-panel-for-delete':
       return panelBtn;
+    case 'expand-route-options':
+      return routeActionsMenuBtn;
+    case 'review-expanded-route-options':
+      return routeActionsMenu || routeActionsMenuBtn;
+    case 'review-route-action-multi-select':
+      return getStartMultiSelectRouteActionRow() || startMultiSelectBtn || null;
+    case 'review-route-action-export':
+      return getExportRouteActionRow() || exportRouteBtn || null;
+    case 'review-route-action-screenshot':
+      return getImportScreenshotRouteActionRow() || importScreenshotBtn || null;
+    case 'open-screenshot-import-demo':
+      return importScreenshotBtn || getImportScreenshotRouteActionRow() || null;
+    case 'review-screenshot-import-example':
+      return getTutorialScreenshotPreviewPanel();
+    case 'read-screenshot-import-demo':
+      return getTutorialScreenshotReadingPanel();
+    case 'review-screenshot-import-results':
+      return actionDialogConfirm || actionDialogModal || null;
+    case 'review-imported-screenshot-customers':
+      return list || getTutorialScreenshotImportedCards()[0] || null;
+    case 'open-reorder-customers':
+      return getReorderRouteActionRow() || reorderCardsBtn;
+    case 'review-reorder-modal':
+      return getReorderModalPanel() || reorderList || reorderBackdrop || null;
+    case 'move-reordered-customer':
+      return getTutorialReorderRow() || getTutorialReorderMoveButton() || reorderList || null;
+    case 'save-reordered-customers':
+      return saveReorder || null;
+    case 'review-reordered-customers':
+      return findGroupCardByName(getTutorialReorderMoveCustomerName()) || list || null;
     case 'open-settings-for-freezer':
     case 'open-settings-for-final-freezer':
       return panelSettingsBtn;
     case 'enable-freezer-feature':
     case 'final-freezer-choice':
       return getFreezerSettingRow();
+    case 'review-useful-settings':
+    case 'review-settings-overview':
+      return sidePanel;
     case 'open-route-dots':
       return findProjectPanelMenuToggleById(tutorialState.projectId);
     case 'delete-route':
       return findProjectPanelDeleteButtonById(tutorialState.projectId);
     case 'confirm-delete-route':
       return actionDialogModal || actionDialogConfirm || actionDialogCancel || null;
+    case 'paste-copied-customers':
+    case 'review-pasted-customers':
+      return importText || getImportModalPanel() || null;
     case 'review-route-deleted':
       return getProjectsPanelSection();
     default:
@@ -8184,10 +10115,118 @@ function getTutorialReviewBeforeDeleteElements() {
   return elements;
 }
 
+function getTutorialCliFocusElements() {
+  const elements = [];
+  const cliRow = document.querySelector('.cli-row');
+  if (preview?.textContent?.trim()) elements.push(preview);
+  if (chipsEl?.childElementCount) elements.push(chipsEl);
+  if (cliRow) elements.push(cliRow);
+  if (!elements.length) {
+    if (cliContainer) elements.push(cliContainer);
+    else if (cliRow) elements.push(cliRow);
+    else if (cmd) elements.push(cmd);
+  }
+  return elements;
+}
+
+function getTutorialSelectedCustomersReviewElements() {
+  const elements = [];
+  const selectionBar = document.getElementById('selectionBar');
+  if (selectionBar && !selectionBar.classList.contains('hidden')) elements.push(selectionBar);
+  const selectedCards = getTutorialRenderedCustomerCards().filter((card) => selectedGroupIds.has(Number(card.dataset.id)));
+  elements.push(...(selectedCards.length ? selectedCards : getTutorialMultiSelectCards()));
+  return elements;
+}
+
+function getTutorialRenderedCustomerCards() {
+  if (!list) return [];
+  return [...list.querySelectorAll('.group[data-id]')].filter((el) => !el.classList.contains('new-group'));
+}
+
+function getTutorialNewGroupCard() {
+  return document.getElementById('newGroupInput')?.closest('.group.new-group') || null;
+}
+
+function getProjectsPanelTitleEl() {
+  return sidePanel?.querySelector('[data-title="projects"] .sidepanel-title') || null;
+}
+
+function getTutorialCreateProjectFocusElements() {
+  return [
+    getProjectsPanelTitleEl(),
+    newProjectName,
+    createProjectBtn,
+    openCreateTemplateModalBtn
+  ].filter(Boolean);
+}
+
+function getTutorialReorderedCustomerReviewElements() {
+  const moveCard = findGroupCardByName(getTutorialReorderMoveCustomerName());
+  const anchorCard = findGroupCardByName(getTutorialReorderAnchorCustomerName());
+  return [moveCard, anchorCard].filter(Boolean);
+}
+
 function resolveTutorialCustomRect(step = getCurrentTutorialStep()) {
   const stepId = typeof step === 'string' ? step : step?.id;
+  if (stepId === 'create-project') {
+    return getRectUnion(getTutorialCreateProjectFocusElements());
+  }
+  if (stepId === 'create-customer' || stepId === 'create-second-customer') {
+    return getTutorialNewGroupCard()?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'start-multi-select-from-card') {
+    return getRectUnion(getTutorialMultiSelectCards());
+  }
+  if (stepId === 'select-second-customer-for-copy') {
+    return getRectUnion(getTutorialRenderedCustomerCards());
+  }
+  if (stepId === 'review-both-selected-customers') {
+    return getRectUnion(getTutorialSelectedCustomersReviewElements());
+  }
+  if (stepId === 'copy-selected-customers') {
+    return document.getElementById('selectionBar')?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'expand-route-options' || stepId === 'review-expanded-route-options') {
+    return getCurrentRoutePanelSection()?.getBoundingClientRect?.() || null;
+  }
+  if (
+    stepId === 'review-route-action-screenshot'
+    || stepId === 'open-screenshot-import-demo'
+  ) {
+    return getImportScreenshotRouteActionRow()?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'delete-route') {
+    return findProjectPanelMenuById(tutorialState.projectId)?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'review-screenshot-import-example') {
+    return getTutorialScreenshotPreviewPanel()?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'read-screenshot-import-demo') {
+    return getTutorialScreenshotReadingPanel()?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'review-screenshot-import-results') {
+    return actionDialogModal?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'review-imported-screenshot-customers') {
+    return list?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'paste-copied-customers' || stepId === 'review-pasted-customers') {
+    return getImportModalPanel()?.getBoundingClientRect?.() || null;
+  }
+  if (stepId === 'move-reordered-customer') {
+    return reorderList?.getBoundingClientRect?.() || getRectUnion(getTutorialReorderInteractiveElements());
+  }
+  if (stepId === 'review-reordered-customers') {
+    return getRectUnion(getTutorialReorderedCustomerReviewElements());
+  }
+  if (isTutorialCliCommandStep(stepId)) {
+    return getRectUnion(getTutorialCliFocusElements());
+  }
   if (stepId === 'review-before-delete') {
     return getRectUnion(getTutorialReviewBeforeDeleteElements());
+  }
+  if (stepId === 'open-route-dots') {
+    return findProjectPanelItemById(tutorialState.projectId)?.getBoundingClientRect?.() || null;
   }
   return null;
 }
@@ -8220,12 +10259,18 @@ function getRectUnion(elements = []) {
 
 function resolveTutorialSecondaryRect(step = getCurrentTutorialStep()) {
   const stepId = typeof step === 'string' ? step : step?.id;
+  if (stepId === 'review-useful-settings') {
+    return getRectUnion(getTutorialUsefulSettingsRows());
+  }
   if (stepId !== 'toggle-card-timestamp' && stepId !== 'review-card-timestamp') return null;
   return resolveTutorialSecondaryTarget(step)?.getBoundingClientRect?.() || null;
 }
 
 function resolveTutorialSecondaryTarget(step = getCurrentTutorialStep()) {
   const stepId = typeof step === 'string' ? step : step?.id;
+  if (stepId === 'review-useful-settings') {
+    return null;
+  }
   if (stepId !== 'toggle-card-timestamp' && stepId !== 'review-card-timestamp') return null;
   return findGroupCardByName(tutorialState.customerName)?.querySelector('.mini-history') || null;
 }
@@ -8234,12 +10279,12 @@ function hideTutorialSpotlight(spotlightEl) {
   spotlightEl?.classList.remove('active');
 }
 
-function applyTutorialSpotlightRect(spotlightEl, rect, viewport, pad = 8) {
+function applyTutorialSpotlightRect(spotlightEl, rect, viewport, pad = 8, edgeInset = 6) {
   if (!spotlightEl || !rect || !rect.width || !rect.height) {
     hideTutorialSpotlight(spotlightEl);
     return;
   }
-  const inset = 6;
+  const inset = Math.max(0, Number(edgeInset) || 0);
   const maxLeftPad = Math.max(0, rect.left - (viewport.left + inset));
   const maxRightPad = Math.max(0, (viewport.left + viewport.width - inset) - rect.right);
   const maxTopPad = Math.max(0, rect.top - (viewport.top + inset));
@@ -8277,6 +10322,74 @@ function isTutorialCliTarget(target = resolveTutorialTarget()) {
   );
 }
 
+function shouldTutorialPanelAnchorTop(step, target, viewport, rect, {
+  panelRect,
+  keyboardCompact = false
+} = {}) {
+  if (!step || !target || !viewport || !rect || !panelRect) return false;
+
+  const mobile = viewport.width <= 720;
+  const edgeInset = mobile ? 10 : 18;
+  const targetCenterY = rect.top + (rect.height / 2);
+  const roomAbove = Math.max(0, rect.top - viewport.top - edgeInset);
+  const roomBelow = Math.max(0, viewport.bottom - rect.bottom - edgeInset);
+  const panelClearance = Math.min(panelRect.height + 16, viewport.height * (mobile ? 0.46 : 0.42));
+
+  return (
+    target === cliContainer
+    || targetCenterY > (viewport.top + (viewport.height * 0.55))
+    || (roomBelow < panelClearance && roomAbove > roomBelow)
+    || (keyboardCompact && roomBelow < panelClearance * 0.82)
+  );
+}
+
+function isTutorialAllowedSettingsTarget(target, stepId = getCurrentTutorialStep()?.id) {
+  if (!(target instanceof Element)) return false;
+  if (stepId !== 'review-useful-settings') return false;
+
+  if (target.closest('#fontSizeRange')) {
+    return true;
+  }
+
+  const switchLabel = target.closest('label.switch');
+  if (
+    switchLabel?.querySelector(
+      '#freezerToggle, #helpPositionToggle, #allTotalsToggle, #handToggle, #themeToggle'
+    )
+  ) {
+    return true;
+  }
+
+  if (target.closest('#freezerToggle, #helpPositionToggle, #allTotalsToggle, #handToggle, #themeToggle')) {
+    return true;
+  }
+
+  return false;
+}
+
+function isTutorialCreateCustomerBlurTarget(target, stepId = getCurrentTutorialStep()?.id) {
+  if (!(target instanceof Element)) return false;
+  if (!isTutorialNewGroupCreationStep(stepId)) return false;
+  return !!(
+    target.id === 'newGroupInput'
+    || target.closest('.group.new-group')
+    || target === list
+    || target === appRoot
+    || target.closest('#list')
+  );
+}
+
+function isTutorialRenameBlurTarget(target, stepId = getCurrentTutorialStep()?.id) {
+  if (!(target instanceof Element)) return false;
+  if (stepId !== 'rename-customer') return false;
+  return !!(
+    target.matches('.group, .group *')
+    || target === list
+    || target === appRoot
+    || target.closest('#list')
+  );
+}
+
 function syncTutorialKeyboardMode() {
   const overlay = document.getElementById('tutorialOverlay');
   if (!overlay) return;
@@ -8303,17 +10416,128 @@ function syncTutorialKeyboardMode() {
 function isTutorialGuardAllowedTarget(target) {
   if (!(target instanceof Element)) return false;
   const stepId = getCurrentTutorialStep()?.id;
+  const importModalPanel = getImportModalPanel();
+  const tutorialScreenshotPreviewPanel = getTutorialScreenshotPreviewPanel();
+  if (
+    stepId === 'review-screenshot-import-results' &&
+    actionDialogBackdrop &&
+    !actionDialogBackdrop.classList.contains('hidden') &&
+    actionDialogBackdrop.contains(target)
+  ) {
+    return !!(actionDialogConfirm && (target === actionDialogConfirm || actionDialogConfirm.contains(target)));
+  }
+  if (
+    stepId === 'read-screenshot-import-demo' &&
+    screenshotLoadingBackdrop &&
+    !screenshotLoadingBackdrop.classList.contains('hidden') &&
+    screenshotLoadingBackdrop.contains(target)
+  ) {
+    return false;
+  }
   if (tutorialPanel?.contains(target)) return true;
   if (tutorialGuideArrow?.contains(target)) return true;
   if (tutorialOverlay?.classList.contains('hidden') === false && tutorialSpotlight?.contains(target)) return true;
   if (actionDialogBackdrop && !actionDialogBackdrop.classList.contains('hidden') && actionDialogBackdrop.contains(target)) return true;
   if (modal && !modal.classList.contains('hidden') && modal.contains(target)) return true;
+  if (
+    stepId === 'review-screenshot-import-example' &&
+    tutorialScreenshotPreviewBackdrop &&
+    !tutorialScreenshotPreviewBackdrop.classList.contains('hidden') &&
+    tutorialScreenshotPreviewPanel?.contains(target)
+  ) {
+    return true;
+  }
+  if (
+    isTutorialClipboardReviewStep(stepId) &&
+    importBackdrop &&
+    !importBackdrop.classList.contains('hidden') &&
+    importModalPanel?.contains(target)
+  ) {
+    return true;
+  }
+  if (
+    (
+      stepId === 'review-expanded-route-options'
+      || stepId === 'review-route-action-multi-select'
+      || stepId === 'review-route-action-export'
+      || stepId === 'review-route-action-screenshot'
+    ) &&
+    target.closest('.sidepanel-route-actions-wrap')
+  ) {
+    return false;
+  }
+  if (
+    stepId === 'review-reorder-modal' &&
+    reorderBackdrop &&
+    !reorderBackdrop.classList.contains('hidden') &&
+    getReorderModalPanel()?.contains(target)
+  ) {
+    return false;
+  }
+  if (
+    (stepId === 'review-useful-settings' || stepId === 'review-settings-overview') &&
+    getSettingsPanelSection()?.contains(target)
+  ) {
+    return isTutorialAllowedSettingsTarget(target, stepId);
+  }
+  if (isTutorialCreateCustomerBlurTarget(target, stepId)) {
+    return true;
+  }
+  if (isTutorialRenameBlurTarget(target, stepId)) {
+    return true;
+  }
   if (stepId === 'close-side-panel' || stepId === 'close-side-panel-after-freezer') {
     return target === sidePanelBackdrop;
   }
+  if (target.closest('#selectionBar')) {
+    const copyBtn = target.closest('#selCopy');
+    if (copyBtn) return isTutorialSelectionBarActionAllowed('copy', stepId);
+    const shareBtn = target.closest('#selShare');
+    if (shareBtn) return isTutorialSelectionBarActionAllowed('share', stepId);
+    const deleteBtn = target.closest('#selDelete');
+    if (deleteBtn) return isTutorialSelectionBarActionAllowed('delete', stepId);
+    const cancelBtn = target.closest('#selCancel');
+    if (cancelBtn) return isTutorialSelectionBarActionAllowed('cancel', stepId);
+    return getTutorialSelectionBarMode(stepId) === 'default';
+  }
+  if (stepId === 'review-project') {
+    const menuToggle = target.closest('.panel-project-menu-toggle[data-id]');
+    if (menuToggle) return menuToggle.getAttribute('data-id') === tutorialState.projectId;
+    const deleteBtn = target.closest('.panel-delete-project[data-id]');
+    if (deleteBtn) return deleteBtn.getAttribute('data-id') === tutorialState.projectId;
+    const projectItem = target.closest('.panel-item-project');
+    if (projectItem && projectItem === findProjectPanelItemById(tutorialState.projectId)) {
+      return false;
+    }
+  }
+  if (stepId === 'start-multi-select-from-card') {
+    const card = target.closest('.group');
+    if (
+      card
+      && getTutorialPracticeMultiSelectCards().includes(card)
+    ) {
+      return true;
+    }
+  }
+  if (stepId === 'select-second-customer-for-copy' || stepId === 'review-both-selected-customers') {
+    const card = target.closest('.group');
+    if (card && getTutorialRenderedCustomerCards().includes(card)) {
+      return true;
+    }
+  }
+  if (stepId === 'move-reordered-customer') {
+    const row = target.closest('.reorder-item');
+    if (row && getTutorialReorderInteractiveElements().includes(row)) {
+      return true;
+    }
+    const moveBtn = target.closest('.reorder-move');
+    if (moveBtn && getTutorialReorderInteractiveElements().includes(moveBtn)) {
+      return true;
+    }
+  }
   if (
-    stepId === 'review-before-delete' &&
-    (target.closest('.group') || target.closest('.all-totals'))
+    (stepId === 'review-before-delete' && (target.closest('.group') || target.closest('.all-totals')))
+    || (stepId === 'review-reordered-customers' && target.closest('.group'))
   ) {
     return false;
   }
@@ -8339,7 +10563,22 @@ function syncTutorialSpotlight() {
   const target = resolveTutorialTarget();
   const secondaryTarget = resolveTutorialSecondaryTarget(step);
   setTutorialTargetHighlight(
-    step?.id === 'close-side-panel' || step?.id === 'close-side-panel-after-freezer'
+    step?.id === 'select-second-customer-for-copy'
+      || step?.id === 'move-reordered-customer'
+      || step?.id === 'review-reordered-customers'
+      || step?.id === 'review-imported-screenshot-customers'
+      ? null
+      : step?.id === 'create-customer' || step?.id === 'create-second-customer'
+      ? document.getElementById('newGroupInput')?.closest('.group.new-group') || target
+      : step?.id === 'review-expanded-route-options'
+      ? getCurrentRoutePanelSection()
+      : step?.id === 'open-screenshot-import-demo'
+      ? importScreenshotBtn
+      : step?.id === 'review-screenshot-import-results'
+      ? actionDialogConfirm || target
+      : step?.id === 'open-reorder-customers'
+      ? reorderCardsBtn
+      : step?.id === 'close-side-panel' || step?.id === 'close-side-panel-after-freezer'
       ? sidePanel
       : target
   );
@@ -8391,28 +10630,30 @@ function syncTutorialSpotlight() {
 
   if (tutorialPanel) {
     const panelRect = tutorialPanel.getBoundingClientRect();
-    const mobile = viewport.width <= 720;
-    const edgeInset = mobile ? 10 : 18;
-    const targetCenterY = rect.top + (rect.height / 2);
-    const roomAbove = Math.max(0, rect.top - viewport.top - edgeInset);
-    const roomBelow = Math.max(0, viewport.bottom - rect.bottom - edgeInset);
-    const panelClearance = Math.min(panelRect.height + 16, viewport.height * (mobile ? 0.46 : 0.42));
-    const shouldAnchorTop =
-      target === cliContainer
-      || targetCenterY > (viewport.top + (viewport.height * 0.55))
-      || (roomBelow < panelClearance && roomAbove > roomBelow)
-      || (keyboardCompact && roomBelow < panelClearance * 0.82);
+    const shouldAnchorTop = shouldTutorialPanelAnchorTop(step, target, viewport, rect, {
+      panelRect,
+      keyboardCompact
+    });
     tutorialPanel.classList.toggle('anchor-top', shouldAnchorTop);
   }
 
   const isCliTarget = target === cliContainer || target.classList?.contains('cli-row');
+  const isTopbarIconTarget =
+    target === panelBtn
+    || target === panelSettingsBtn
+    || target.classList?.contains('icon-btn');
   let pad = isCliTarget ? 10 : 8;
+  let edgeInset = 6;
+  if (isTopbarIconTarget) {
+    pad = Math.max(pad, 9);
+    edgeInset = 1;
+  }
   if (step?.id === 'toggle-card-timestamp' || step?.id === 'review-card-timestamp') {
     pad = 10;
   } else if (step?.id === 'toggle-mini-history' || step?.id === 'review-mini-history') {
     pad = 16;
   }
-  applyTutorialSpotlightRect(tutorialSpotlight, rect, viewport, pad);
+  applyTutorialSpotlightRect(tutorialSpotlight, rect, viewport, pad, edgeInset);
   const secondaryRect = resolveTutorialSecondaryRect(step);
   applyTutorialSpotlightRect(tutorialSpotlightSecondary, secondaryRect, viewport, 6);
   setTutorialGuideArrowState(getTutorialGuideArrowState(step, target, rect, viewport));
@@ -8425,9 +10666,47 @@ function scheduleTutorialSpotlightSync() {
   });
 }
 
+function scheduleTutorialSpotlightSettleSync(delays = [0, 80, 180, 320]) {
+  const token = ++tutorialSpotlightSettleToken;
+  delays.forEach((delay) => {
+    window.setTimeout(() => {
+      if (token !== tutorialSpotlightSettleToken) return;
+      scheduleTutorialSpotlightSync();
+    }, Math.max(0, Number(delay) || 0));
+  });
+}
+
+function syncTutorialStepBodyClass(step = getCurrentTutorialStep()) {
+  document.body?.classList.toggle(
+    'tutorial-step-start-multi-select',
+    !!tutorialState.active && !isTutorialComplete() && step?.id === 'start-multi-select-from-card'
+  );
+  document.body?.classList.toggle(
+    'tutorial-step-review-before-delete',
+    !!tutorialState.active && !isTutorialComplete() && step?.id === 'review-before-delete'
+  );
+  document.body?.classList.toggle(
+    'tutorial-step-clipboard-review',
+    !!tutorialState.active && !isTutorialComplete() && isTutorialClipboardReviewStep(step)
+  );
+  document.body?.classList.toggle(
+    'tutorial-step-paste-copied-customers',
+    !!tutorialState.active && !isTutorialComplete() && step?.id === 'paste-copied-customers'
+  );
+  document.body?.classList.toggle(
+    'tutorial-step-review-pasted-customers',
+    !!tutorialState.active && !isTutorialComplete() && step?.id === 'review-pasted-customers'
+  );
+}
+
 function renderTutorialOverlay() {
   if (!tutorialOverlay || !tutorialPanel) return;
   if (!tutorialState.active) {
+    syncResetHoldButtonUI();
+    syncTutorialStepBodyClass(null);
+    syncImportModalLabels(null);
+    tutorialFinishTransition?.classList.remove('with-complete-panel');
+    tutorialFinishTransition?.style.removeProperty('--tutorial-finish-panel-shift');
     tutorialOverlay.classList.add('hidden');
     tutorialOverlay.classList.remove('over-action-dialog');
     hideTutorialSpotlight(tutorialSpotlight);
@@ -8440,16 +10719,52 @@ function renderTutorialOverlay() {
   const copy = getHelpCopy();
   const step = getCurrentTutorialStep();
   if (!step) return;
+  syncResetHoldButtonUI();
+  syncTutorialStepBodyClass(step);
+  syncImportModalLabels(step);
+  syncTutorialImportPreviewState(step);
+  updateSelectionBarUI();
 
   tutorialOverlay.classList.remove('hidden');
   tutorialOverlay.classList.toggle(
     'over-action-dialog',
-    step.id === 'confirm-delete-route' &&
-    !!actionDialogBackdrop &&
-    !actionDialogBackdrop.classList.contains('hidden')
+    (
+      step.id === 'confirm-delete-route' &&
+      !!actionDialogBackdrop &&
+      !actionDialogBackdrop.classList.contains('hidden')
+    )
+    || (
+      isTutorialClipboardReviewStep(step) &&
+      !!importBackdrop &&
+      !importBackdrop.classList.contains('hidden')
+    )
+    || (
+      (
+        step.id === 'review-reorder-modal'
+        || step.id === 'move-reordered-customer'
+        || step.id === 'save-reordered-customers'
+      ) &&
+      !!reorderBackdrop &&
+      !reorderBackdrop.classList.contains('hidden')
+    )
+    || (
+      step.id === 'review-screenshot-import-example' &&
+      !!tutorialScreenshotPreviewBackdrop &&
+      !tutorialScreenshotPreviewBackdrop.classList.contains('hidden')
+    )
+    || (
+      step.id === 'read-screenshot-import-demo' &&
+      !!screenshotLoadingBackdrop &&
+      !screenshotLoadingBackdrop.classList.contains('hidden')
+    )
+    || (
+      step.id === 'review-screenshot-import-results' &&
+      !!actionDialogBackdrop &&
+      !actionDialogBackdrop.classList.contains('hidden')
+    )
   );
   tutorialStepLabel.textContent = step.label;
-  tutorialStepTitle.textContent = step.title;
+  tutorialStepTitle.innerHTML = formatHelpRichText(step.title);
   tutorialStepBody.innerHTML = formatHelpRichText(step.body);
   const tutorialHintText = getTutorialHintText(step, copy);
   tutorialStepHint.innerHTML = formatHelpRichText(tutorialHintText);
@@ -8459,11 +10774,28 @@ function renderTutorialOverlay() {
     tutorialGuideArrow.setAttribute('title', copy.tutorialShowTarget);
   }
   const tutorialContinueCta = isTutorialManualContinueStep(step) && step.id !== 'complete';
-  tutorialRepeatBtn.textContent = tutorialContinueCta ? copy.tutorialContinue : copy.repeatStep;
-  tutorialRepeatBtn.style.display = step.id === 'complete' ? 'none' : '';
+  const animatedFinishActive = shouldUseAnimatedTutorialFinish(step);
+  const hidePanelForFinishTransition = animatedFinishActive && !tutorialFinishPanelVisible;
+  tutorialRepeatBtn.textContent = copy.tutorialContinue;
+  tutorialRepeatBtn.style.display = tutorialContinueCta ? '' : 'none';
   tutorialRepeatBtn.classList.toggle('is-continue-cta', tutorialContinueCta);
   tutorialEndBtn.textContent = step.id === 'complete' ? copy.finishTutorial : copy.endTutorial;
   tutorialPanel.classList.toggle('is-complete', step.id === 'complete');
+  tutorialPanel.classList.toggle('is-finish-hidden', hidePanelForFinishTransition);
+  tutorialPanel.classList.toggle('is-finish-reveal', animatedFinishActive && tutorialFinishPanelVisible);
+  if (tutorialFinishTransition) {
+    const finishPanelVisible = animatedFinishActive && tutorialFinishPanelVisible;
+    tutorialFinishTransition.classList.toggle('with-complete-panel', finishPanelVisible);
+    if (finishPanelVisible) {
+      const viewport = getTutorialViewportMetrics();
+      const panelRect = tutorialPanel.getBoundingClientRect();
+      const bottomGap = Math.max(0, viewport.bottom - panelRect.bottom);
+      const shiftPx = Math.max(0, Math.round((panelRect.height + bottomGap) / 2));
+      tutorialFinishTransition.style.setProperty('--tutorial-finish-panel-shift', `${shiftPx}px`);
+    } else {
+      tutorialFinishTransition.style.setProperty('--tutorial-finish-panel-shift', '0px');
+    }
+  }
   syncTutorialKeyboardMode();
   scheduleTutorialSpotlightSync();
 }
@@ -8476,11 +10808,17 @@ async function activateCurrentTutorialStep({ force = false } = {}) {
 
   const step = getCurrentTutorialStep();
   if (!step) return;
+  const animatedFinishActive = shouldUseAnimatedTutorialFinish(step);
   const token = ++tutorialStepSyncToken;
   const shouldEnter = force || tutorialStepEnteredId !== step.id;
 
   if (shouldEnter) {
     tutorialStepEnteredId = step.id;
+    if (animatedFinishActive) {
+      tutorialFinishSequenceStarted = false;
+      tutorialFinishPanelVisible = false;
+      hideTutorialFinishTransition();
+    }
     await step.onEnter?.();
     if (token !== tutorialStepSyncToken) return;
   }
@@ -8497,10 +10835,371 @@ async function activateCurrentTutorialStep({ force = false } = {}) {
 
   renderTutorialOverlay();
   if (isHelpModalOpen()) renderHelpModal();
+  scheduleTutorialSpotlightSettleSync();
+  if (animatedFinishActive && !tutorialFinishSequenceStarted) {
+    tutorialFinishSequenceStarted = true;
+    void playTutorialFinishTransition({ revealCompletionCard: true, autoHide: false });
+  }
 }
 
 function copyOrFallbackCelebration() {
-  return getHelpCopy().tutorialCelebration || 'Tutorial finished';
+  const copy = getHelpCopy();
+  if (tutorialState.completionVariant === 'early-delete') {
+    return copy.tutorialEarlyDeleteCelebration || copy.tutorialCelebration || 'Tutorial finished';
+  }
+  return copy.tutorialCelebration || 'Tutorial finished';
+}
+
+function shouldUseAnimatedTutorialFinish(step = getCurrentTutorialStep()) {
+  return !!tutorialState.active && step?.id === 'complete' && tutorialState.completionVariant !== 'early-delete';
+}
+
+function getTutorialFinishChipTone(defs, tokenId) {
+  const type = String(defs?.[tokenId]?.type || '').toLowerCase();
+  if (tokenId === 'rood' || tokenId === 'kleinblauw' || tokenId === 'bierkrat' || tokenId === 'limkrat') return 'return';
+  if (type === 'box' || type === 'cover' || tokenId === 'eps') return 'freezer';
+  return 'delivered';
+}
+
+function clearTutorialFinishChipCloud() {
+  tutorialFinishChipPoolState.syntax.common = [];
+  tutorialFinishChipPoolState.syntax.other = [];
+  tutorialFinishChipPoolState.syntax.lastTokenId = '';
+  tutorialFinishChipPoolState.name.common = [];
+  tutorialFinishChipPoolState.name.other = [];
+  tutorialFinishChipPoolState.name.lastTokenId = '';
+  tutorialFinishNameCloud?.replaceChildren();
+  tutorialFinishChipCloud?.replaceChildren();
+}
+
+const TUTORIAL_FINISH_COMMON_TOKEN_IDS = ['krat', 'container', 'box', 'rood'];
+const tutorialFinishChipPoolState = {
+  syntax: {
+    common: [],
+    other: [],
+    lastTokenId: ''
+  },
+  name: {
+    common: [],
+    other: [],
+    lastTokenId: ''
+  }
+};
+const TUTORIAL_FINISH_CHIP_SYNTAX = {
+  krat: 'k',
+  container: 'c',
+  box: 'b',
+  rood: 'r',
+  hoes: 'h',
+  eps: 'eps',
+  cbl: 'cbl',
+  kleinblauw: 'bl',
+  europallet: 'ep',
+  kunststofpallet: 'kp',
+  container_lekkerland: 'cl',
+  zuurkoolvat: 'zv',
+  sigarettenbox: 'sb',
+  bierkrat: 'bk',
+  limkrat: 'lk',
+  bierfles: 'bf',
+  spakrat: 'sp',
+  watercan: 'wc',
+  biervat: 'bv',
+  koolzuurfles: 'kz'
+};
+
+function shuffleTutorialFinishTokenIds(tokenIds = []) {
+  const shuffled = [...tokenIds];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const swapIndex = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function pickTutorialFinishChipTokenId(defs, tokenIds = [], { preferCommon = null, layer = 'syntax' } = {}) {
+  const availableIds = Array.isArray(tokenIds) ? tokenIds.filter(Boolean) : [];
+  if (!availableIds.length) return '';
+  const commonIds = TUTORIAL_FINISH_COMMON_TOKEN_IDS.filter((id) => defs?.[id] && availableIds.includes(id));
+  const otherIds = availableIds.filter((id) => !commonIds.includes(id));
+  const useCommon = preferCommon == null
+    ? (commonIds.length && (Math.random() < 0.66 || !otherIds.length))
+    : !!preferCommon;
+  const poolKey = useCommon && commonIds.length ? 'common' : 'other';
+  const poolIds = poolKey === 'common' ? commonIds : otherIds;
+  const fallbackPool = poolIds.length ? poolIds : availableIds;
+  const layerState = tutorialFinishChipPoolState[layer] || tutorialFinishChipPoolState.syntax;
+  const currentPool = Array.isArray(layerState[poolKey]) ? layerState[poolKey] : [];
+  const needsRefresh = !currentPool.length || currentPool.some((id) => !fallbackPool.includes(id));
+
+  if (needsRefresh) {
+    layerState[poolKey] = shuffleTutorialFinishTokenIds(fallbackPool);
+  }
+
+  if (
+    layerState[poolKey].length > 1
+    && layerState[poolKey][0] === layerState.lastTokenId
+  ) {
+    layerState[poolKey].push(layerState[poolKey].shift());
+  }
+
+  const tokenId = layerState[poolKey].shift() || fallbackPool[0] || availableIds[0] || '';
+  layerState.lastTokenId = tokenId;
+  return tokenId;
+}
+
+function getTutorialFinishChipValue(tokenId) {
+  const min = tokenId === 'krat' ? -5 : -2;
+  const max = tokenId === 'krat' ? 100 : 9;
+  const values = [];
+  for (let value = min; value <= max; value += 1) {
+    if (value === 0) continue;
+    values.push(value);
+  }
+  if (!values.length) return 1;
+  return values[Math.floor(Math.random() * values.length)] || 1;
+}
+
+function getTutorialFinishChipSyntax(tokenId, defs = DEFAULT_TOKENS) {
+  const canonical = TUTORIAL_FINISH_CHIP_SYNTAX[tokenId];
+  if (canonical) return canonical;
+  return String(defs?.[tokenId]?.defaultRef || tokenId || '').trim().toLowerCase();
+}
+
+function getTutorialFinishChipDisplayName(tokenId, defs = DEFAULT_TOKENS) {
+  return String(defs?.[tokenId]?.name_nl || DEFAULT_TOKENS?.[tokenId]?.name_nl || tokenId || '').trim();
+}
+
+function canLoopTutorialFinishChipCloud() {
+  return !!tutorialFinishTransition
+    && tutorialFinishTransition.classList.contains('is-playing')
+    && !tutorialFinishTransition.classList.contains('hidden')
+    && !tutorialFinishTransition.classList.contains('is-exiting');
+}
+
+function populateTutorialFinishChipElement(chip, { initial = false, index = 0, preferCommon = null } = {}) {
+  if (!chip) return false;
+  const defs = getTokenDefs();
+  const tokenIds = TOKEN_ORDER.filter((id) => defs[id]);
+  if (!tokenIds.length) return false;
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const tokenId = pickTutorialFinishChipTokenId(defs, tokenIds, { preferCommon, layer: 'syntax' });
+  const alias = getTutorialFinishChipSyntax(tokenId);
+  const value = getTutorialFinishChipValue(tokenId);
+  const label = `${value}${String(alias || '').trim()}`;
+  const left = 6 + Math.random() * 88;
+  const top = 10 + Math.random() * 72;
+  const startX = -92 + Math.random() * 184;
+  const startY = 42 + Math.random() * 86;
+  const endX = -150 + Math.random() * 300;
+  const endY = -168 - Math.random() * 126;
+  const midX = startX * (-0.18 - Math.random() * 0.2);
+  const midY = -22 - Math.random() * 42;
+  const startRot = -22 + Math.random() * 44;
+  const midRot = startRot * (0.18 + Math.random() * 0.34);
+  const endRot = -15 + Math.random() * 30;
+  const durationMs = prefersReducedMotion ? 4600 : 3600 + Math.random() * 2200;
+  const tone = getTutorialFinishChipTone(defs, tokenId);
+  const initialPhase = Math.min(0.88, 0.12 + (index * 0.11) + Math.random() * 0.16);
+  const delayMs = initial && !prefersReducedMotion ? -durationMs * initialPhase : 0;
+
+  chip.className = `tutorial-finish-chip tutorial-finish-chip-${tone}${value < 0 ? ' is-negative' : ''}`;
+  chip.textContent = label;
+  chip.style.setProperty('--chip-left', `${left.toFixed(2)}%`);
+  chip.style.setProperty('--chip-top', `${top.toFixed(2)}%`);
+  chip.style.setProperty('--chip-start-x', `${startX.toFixed(0)}px`);
+  chip.style.setProperty('--chip-start-y', `${startY.toFixed(0)}px`);
+  chip.style.setProperty('--chip-mid-x', `${midX.toFixed(0)}px`);
+  chip.style.setProperty('--chip-mid-y', `${midY.toFixed(0)}px`);
+  chip.style.setProperty('--chip-end-x', `${endX.toFixed(0)}px`);
+  chip.style.setProperty('--chip-end-y', `${endY.toFixed(0)}px`);
+  chip.style.setProperty('--chip-rot-start', `${startRot.toFixed(1)}deg`);
+  chip.style.setProperty('--chip-rot-mid', `${midRot.toFixed(1)}deg`);
+  chip.style.setProperty('--chip-rot-end', `${endRot.toFixed(1)}deg`);
+  chip.style.setProperty('--chip-delay', `${delayMs.toFixed(0)}ms`);
+  chip.style.setProperty('--chip-duration', `${durationMs.toFixed(0)}ms`);
+  return true;
+}
+
+function buildTutorialFinishChipElement({ initial = false, index = 0 } = {}) {
+  const chip = document.createElement('span');
+  const preferCommon = index % 3 !== 2;
+  chip.dataset.finishChipBucket = preferCommon ? 'common' : 'other';
+  if (!populateTutorialFinishChipElement(chip, { initial, index, preferCommon })) return null;
+  chip.classList.add('is-animating');
+  chip.addEventListener('animationend', () => {
+    if (!canLoopTutorialFinishChipCloud()) return;
+    populateTutorialFinishChipElement(chip, {
+      preferCommon: chip.dataset.finishChipBucket !== 'other'
+    });
+    chip.classList.remove('is-animating');
+    void chip.offsetWidth;
+    chip.classList.add('is-animating');
+  });
+  return chip;
+}
+
+function populateTutorialFinishNameChipElement(chip, { initial = false, index = 0, preferCommon = null } = {}) {
+  if (!chip) return false;
+  const defs = getTokenDefs();
+  const tokenIds = TOKEN_ORDER.filter((id) => defs[id]);
+  if (!tokenIds.length) return false;
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const tokenId = pickTutorialFinishChipTokenId(defs, tokenIds, { preferCommon, layer: 'name' });
+  const label = getTutorialFinishChipDisplayName(tokenId, defs);
+  if (!label) return false;
+  const left = 8 + Math.random() * 80;
+  const top = 16 + Math.random() * 60;
+  const startX = -120 + Math.random() * 240;
+  const startY = 58 + Math.random() * 120;
+  const endX = -180 + Math.random() * 360;
+  const endY = -176 - Math.random() * 132;
+  const midX = startX * (-0.14 - Math.random() * 0.18);
+  const midY = -28 - Math.random() * 56;
+  const startRot = -18 + Math.random() * 36;
+  const midRot = startRot * (0.12 + Math.random() * 0.24);
+  const endRot = -12 + Math.random() * 24;
+  const durationMs = prefersReducedMotion ? 6200 : 5600 + Math.random() * 2600;
+  const tone = getTutorialFinishChipTone(defs, tokenId);
+  const initialPhase = Math.min(0.82, 0.08 + (index * 0.12) + Math.random() * 0.18);
+  const delayMs = initial && !prefersReducedMotion ? -durationMs * initialPhase : 0;
+
+  chip.className = `tutorial-finish-name-chip tutorial-finish-chip-${tone}`;
+  chip.textContent = label;
+  chip.style.setProperty('--chip-left', `${left.toFixed(2)}%`);
+  chip.style.setProperty('--chip-top', `${top.toFixed(2)}%`);
+  chip.style.setProperty('--chip-start-x', `${startX.toFixed(0)}px`);
+  chip.style.setProperty('--chip-start-y', `${startY.toFixed(0)}px`);
+  chip.style.setProperty('--chip-mid-x', `${midX.toFixed(0)}px`);
+  chip.style.setProperty('--chip-mid-y', `${midY.toFixed(0)}px`);
+  chip.style.setProperty('--chip-end-x', `${endX.toFixed(0)}px`);
+  chip.style.setProperty('--chip-end-y', `${endY.toFixed(0)}px`);
+  chip.style.setProperty('--chip-rot-start', `${startRot.toFixed(1)}deg`);
+  chip.style.setProperty('--chip-rot-mid', `${midRot.toFixed(1)}deg`);
+  chip.style.setProperty('--chip-rot-end', `${endRot.toFixed(1)}deg`);
+  chip.style.setProperty('--chip-delay', `${delayMs.toFixed(0)}ms`);
+  chip.style.setProperty('--chip-duration', `${durationMs.toFixed(0)}ms`);
+  return true;
+}
+
+function buildTutorialFinishNameChipElement({ initial = false, index = 0 } = {}) {
+  const chip = document.createElement('span');
+  const preferCommon = index % 2 === 0;
+  chip.dataset.finishChipBucket = preferCommon ? 'common' : 'other';
+  if (!populateTutorialFinishNameChipElement(chip, { initial, index, preferCommon })) return null;
+  chip.classList.add('is-animating');
+  chip.addEventListener('animationend', () => {
+    if (!canLoopTutorialFinishChipCloud()) return;
+    populateTutorialFinishNameChipElement(chip, {
+      preferCommon: chip.dataset.finishChipBucket !== 'other'
+    });
+    chip.classList.remove('is-animating');
+    void chip.offsetWidth;
+    chip.classList.add('is-animating');
+  });
+  return chip;
+}
+
+function startTutorialFinishChipCloud() {
+  if (!tutorialFinishChipCloud && !tutorialFinishNameCloud) return;
+  clearTutorialFinishChipCloud();
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const initialCount = prefersReducedMotion ? 4 : 7;
+  const nameCount = prefersReducedMotion ? 2 : 4;
+  for (let index = 0; index < initialCount; index += 1) {
+    const chip = buildTutorialFinishChipElement({ initial: true, index });
+    if (chip) tutorialFinishChipCloud.appendChild(chip);
+  }
+  for (let index = 0; index < nameCount; index += 1) {
+    const chip = buildTutorialFinishNameChipElement({ initial: true, index });
+    if (chip) tutorialFinishNameCloud?.appendChild(chip);
+  }
+}
+
+function getTutorialFinishTransitionDurationMs() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 5600 : 7600;
+}
+
+function getTutorialFinishTransitionExitDurationMs() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 180 : 360;
+}
+
+async function hideTutorialFinishTransition({ advanceToken = true, animate = false } = {}) {
+  if (advanceToken) tutorialFinishTransitionToken += 1;
+  const token = tutorialFinishTransitionToken;
+  tutorialFinishSequenceStarted = false;
+  tutorialFinishPanelVisible = false;
+  clearTutorialFinishChipCloud();
+  if (!tutorialFinishTransition) return;
+  if (!animate || tutorialFinishTransition.classList.contains('hidden')) {
+    document.body.classList.remove('tutorial-finish-active');
+    tutorialFinishTransition.classList.add('hidden');
+    tutorialFinishTransition.classList.remove('is-playing', 'is-exiting', 'with-complete-panel');
+    tutorialFinishTransition.style.removeProperty('--tutorial-finish-panel-shift');
+    tutorialFinishTransition.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  tutorialFinishTransition.classList.remove('is-playing');
+  tutorialFinishTransition.classList.add('is-exiting');
+  tutorialFinishTransition.setAttribute('aria-hidden', 'true');
+
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, getTutorialFinishTransitionExitDurationMs());
+  });
+
+  if (token !== tutorialFinishTransitionToken) return;
+  document.body.classList.remove('tutorial-finish-active');
+  tutorialFinishTransition.classList.add('hidden');
+  tutorialFinishTransition.classList.remove('is-exiting', 'with-complete-panel');
+  tutorialFinishTransition.style.removeProperty('--tutorial-finish-panel-shift');
+}
+
+async function playTutorialFinishTransition({ revealCompletionCard = false, autoHide = true } = {}) {
+  if (!tutorialFinishTransition) return;
+  const copy = getHelpCopy();
+  const durationMs = getTutorialFinishTransitionDurationMs();
+  const token = ++tutorialFinishTransitionToken;
+  const revealDelayMs = revealCompletionCard
+    ? Math.max(0, durationMs - (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 540 : 1100))
+    : durationMs;
+
+  startTutorialFinishChipCloud();
+  tutorialFinishTransition.style.setProperty('--tutorial-finish-duration', `${durationMs}ms`);
+  if (tutorialFinishKicker) tutorialFinishKicker.textContent = copy.tutorialFinishTransitionKicker || '100% complete';
+  if (tutorialFinishTitle) tutorialFinishTitle.innerHTML = formatHelpRichText(copy.tutorialFinishTransitionTitle || 'You are ready to count');
+  if (tutorialFinishBody) tutorialFinishBody.innerHTML = formatHelpRichText(copy.tutorialFinishTransitionBody || '');
+  if (tutorialFinishFooter) tutorialFinishFooter.innerHTML = formatHelpRichText(copy.tutorialFinishTransitionFooter || '');
+  if (tutorialFinishFinal) tutorialFinishFinal.innerHTML = formatHelpRichText(copy.tutorialFinishTransitionFinal || '');
+
+  tutorialFinishTransition.classList.remove('hidden');
+  tutorialFinishTransition.classList.remove('is-playing', 'is-exiting');
+  tutorialFinishTransition.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('tutorial-finish-active');
+
+  void tutorialFinishTransition.offsetWidth;
+  tutorialFinishTransition.classList.add('is-playing');
+
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, revealDelayMs);
+  });
+
+  if (token !== tutorialFinishTransitionToken) return;
+  if (revealCompletionCard) {
+    tutorialFinishPanelVisible = true;
+    renderTutorialOverlay();
+    scheduleTutorialSpotlightSync();
+  }
+  if (!autoHide) return;
+
+  const remainingMs = Math.max(0, durationMs - revealDelayMs);
+  if (remainingMs > 0) {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, remainingMs);
+    });
+    if (token !== tutorialFinishTransitionToken) return;
+  }
+  await hideTutorialFinishTransition({ advanceToken: false, animate: true });
 }
 
 async function advanceTutorialStep() {
@@ -8511,6 +11210,7 @@ async function advanceTutorialStep() {
 
 async function startTutorial({ restart = false } = {}) {
   const copy = getHelpCopy();
+  hideTutorialFinishTransition();
 
   if (helpCliPracticeState.active) {
     await stopHelpCliPractice({ silent: true, reopenHelp: false });
@@ -8531,6 +11231,7 @@ async function startTutorial({ restart = false } = {}) {
     active: true,
     stepIndex: 0,
     originalProjectId: getCurrentProject(),
+    originalCmdValue: String(cmd?.value || ''),
     projectId: '',
     projectName: suggestUniqueProjectName(copy.tutorialDraftRoute, readProjects()),
     customerName: copy.tutorialDraftCustomer,
@@ -8538,20 +11239,30 @@ async function startTutorial({ restart = false } = {}) {
     renamedCustomerName: copy.tutorialDraftRenamedCustomer,
     initialFreezerEnabled: isFreezerEnabled(),
     timestampToggleCount: 0,
-    miniHistoryToggleCount: 0
+    miniHistoryToggleCount: 0,
+    multiSelectStartName: '',
+    screenshotImportReadReady: false,
+    clipboardPreviewText: '',
+    completionVariant: '',
+    reopenHelpOnFinish: false
   };
   tutorialStepEnteredId = '';
   tutorialCelebrationShown = false;
+  syncResetHoldButtonUI();
   closeHelpModal();
+  closeImportModal();
+  exitSelectionMode();
+  setCmdValueSilently('', { blur: true });
   await activateCurrentTutorialStep({ force: true });
 }
 
-async function stopTutorial({ cleanup = true, silent = false } = {}) {
+async function stopTutorial({ cleanup = true, silent = false, animateFinishTransitionOut = false } = {}) {
   const prevState = { ...tutorialState };
   tutorialState = {
     active: false,
     stepIndex: 0,
     originalProjectId: '',
+    originalCmdValue: '',
     projectId: '',
     projectName: '',
     customerName: '',
@@ -8559,16 +11270,33 @@ async function stopTutorial({ cleanup = true, silent = false } = {}) {
     renamedCustomerName: '',
     initialFreezerEnabled: false,
     timestampToggleCount: 0,
-    miniHistoryToggleCount: 0
+    miniHistoryToggleCount: 0,
+    multiSelectStartName: '',
+    screenshotImportReadReady: false,
+    clipboardPreviewText: '',
+    completionVariant: '',
+    reopenHelpOnFinish: false
   };
   tutorialStepEnteredId = '';
   tutorialCelebrationShown = false;
   tutorialStepSyncToken += 1;
+  tutorialSpotlightSettleToken += 1;
+  tutorialFinishSequenceStarted = false;
+  tutorialFinishPanelVisible = false;
+  syncResetHoldButtonUI();
+  syncTutorialStepBodyClass(null);
+  syncImportModalLabels(null);
   tutorialOverlay?.classList.add('hidden');
   tutorialOverlay?.classList.remove('keyboard-compact');
   hideTutorialSpotlight(tutorialSpotlight);
   hideTutorialSpotlight(tutorialSpotlightSecondary);
   resetTutorialTargetHighlight();
+  tutorialImportPreviewFitFrame = 0;
+  closeImportModal();
+  closeTutorialScreenshotImportDemoUi();
+  closeSidePanel();
+  exitSelectionMode();
+  await hideTutorialFinishTransition({ animate: animateFinishTransitionOut });
 
   if (cleanup && prevState.projectId && readProjects().length > 1 && tutorialRouteExists(prevState.projectId)) {
     await deleteProjectByIdSilently(prevState.projectId, {
@@ -8578,6 +11306,8 @@ async function stopTutorial({ cleanup = true, silent = false } = {}) {
     const exists = readProjects().some((project) => project.id === prevState.originalProjectId);
     if (exists) await switchProject(prevState.originalProjectId);
   }
+
+  setCmdValueSilently(prevState.originalCmdValue || '', { blur: true });
 
   if (!silent) {
     feedback.textContent = getHelpCopy().tutorialClosed;
@@ -8603,7 +11333,18 @@ async function notifyTutorialProgress(type, payload = {}) {
     if (currentStepId === 'confirm-delete-route') {
       await advanceTutorialStep();
     } else {
+      tutorialState.completionVariant = currentStepId === 'review-project' ? 'early-delete' : '';
+      tutorialState.reopenHelpOnFinish = currentStepId === 'review-project';
       tutorialState.stepIndex = HELP_TUTORIAL_STEP_COUNT;
+      tutorialStepEnteredId = '';
+      await activateCurrentTutorialStep({ force: true });
+    }
+    return;
+  }
+
+  if (type === 'delete-dialog-closed' && currentStepId === 'confirm-delete-route') {
+    if (!payload.confirmed && String(payload.projectId || '') === tutorialState.projectId) {
+      tutorialState.stepIndex = Math.max(0, tutorialState.stepIndex - 1);
       tutorialStepEnteredId = '';
       await activateCurrentTutorialStep({ force: true });
     }
@@ -8631,6 +11372,74 @@ async function notifyTutorialProgress(type, payload = {}) {
   }
 
   if (type === 'side-panel-opened' && (currentStepId === 'open-side-panel-for-freezer' || currentStepId === 'open-side-panel-for-delete')) {
+    await advanceTutorialStep();
+    return;
+  }
+
+  if (type === 'route-actions-toggled' && currentStepId === 'expand-route-options') {
+    if (payload.opened) {
+      await advanceTutorialStep();
+    }
+    return;
+  }
+
+  if (type === 'selection-started' && currentStepId === 'start-multi-select-from-card') {
+    const selectedGroupNames = Array.isArray(payload.selectedGroupNames) ? payload.selectedGroupNames : [];
+    const startName = selectedGroupNames.find((name) => getTutorialMultiSelectCustomerNames().includes(String(name || '').trim()));
+    if (startName) {
+      tutorialState.multiSelectStartName = String(startName || '').trim();
+      await advanceTutorialStep();
+    }
+    return;
+  }
+
+  if (type === 'selection-updated' && currentStepId === 'select-second-customer-for-copy') {
+    if (
+      Number(payload.count || 0) >= 2
+      && tutorialSelectionIncludesPracticeAndExtraCustomers(payload.selectedGroupNames, {
+        requiredPracticeName: tutorialState.multiSelectStartName
+      })
+    ) {
+      await advanceTutorialStep();
+    }
+    return;
+  }
+
+  if (type === 'selected-customers-copied' && currentStepId === 'copy-selected-customers') {
+    if (Number(payload.count || 0) >= 2) {
+      await advanceTutorialStep();
+    }
+    return;
+  }
+
+  if (type === 'clipboard-review-pasted' && currentStepId === 'paste-copied-customers') {
+    if (Number(payload.textLength || 0) > 0) {
+      await advanceTutorialStep();
+    }
+    return;
+  }
+
+  if (type === 'reorder-modal-opened' && currentStepId === 'open-reorder-customers') {
+    await advanceTutorialStep();
+    return;
+  }
+
+  if (type === 'reorder-moved' && currentStepId === 'move-reordered-customer') {
+    const groupName = String(payload.groupName || '').trim();
+    if (
+      String(payload.dir || '') === 'down'
+      && getTutorialReorderTargetNames().includes(groupName)
+      && isTutorialReorderTargetAtBottom({
+        groupId: payload.groupId,
+        name: groupName
+      })
+    ) {
+      await advanceTutorialStep();
+    }
+    return;
+  }
+
+  if (type === 'reorder-confirmed' && currentStepId === 'save-reordered-customers') {
     await advanceTutorialStep();
     return;
   }
@@ -8829,6 +11638,10 @@ function syncI18nUI() {
   if (importScreenshotTitle) importScreenshotTitle.textContent = t('importScreenshot');
   if (importScreenshotSub) importScreenshotSub.textContent = t('importScreenshotSub');
   if (importScreenshotBtn) importScreenshotBtn.textContent = t('import');
+  if (tutorialScreenshotPreviewBadge) tutorialScreenshotPreviewBadge.textContent = getHelpCopy().tutorialScreenshotPreviewBadge;
+  if (tutorialScreenshotPreviewTitle) tutorialScreenshotPreviewTitle.textContent = getHelpCopy().tutorialScreenshotPreviewTitle;
+  if (tutorialScreenshotPreviewSub) tutorialScreenshotPreviewSub.textContent = getHelpCopy().tutorialScreenshotPreviewSub;
+  if (tutorialScreenshotPreviewImg) tutorialScreenshotPreviewImg.alt = getHelpCopy().tutorialScreenshotPreviewAlt;
   if (screenshotLoadingTitle) screenshotLoadingTitle.textContent = t('importScreenshot');
   if (screenshotLoadingSub) screenshotLoadingSub.textContent = t('screenshotImportPleaseWait');
   if (screenshotLoadingTimeout) {
@@ -8853,6 +11666,7 @@ function syncI18nUI() {
   if (reorderTitle) reorderTitle.textContent = t('reorderCards');
   if (reorderSub) reorderSub.textContent = t('reorderCardsSub');
   if (reorderCardsBtn) reorderCardsBtn.textContent = t('reorder');
+  if (reorderKicker) reorderKicker.textContent = t('reorder');
   if (currentRouteHistoryTitle) currentRouteHistoryTitle.textContent = t('viewHistory');
   if (currentRouteHistorySub) currentRouteHistorySub.textContent = t('viewHistoryRouteSub');
   if (currentRouteHistoryBtn) currentRouteHistoryBtn.textContent = t('viewHistoryBtn');
@@ -8870,8 +11684,13 @@ function syncI18nUI() {
   if (currentRouteDeleteSub) currentRouteDeleteSub.textContent = t('deleteRouteSub');
   if (currentRouteDeleteBtn) currentRouteDeleteBtn.textContent = t('deleteRouteBtn');
   if (currentRouteTemplateBtnSearch) currentRouteTemplateBtnSearch.textContent = t('saveAsTemplateBtn');
-  if (languageTitle) languageTitle.textContent = t('language');
-  if (languageSub) languageSub.textContent = t('languageSub');
+  if (languageTitle) languageTitle.textContent = LANGUAGE_SETTING_TITLE;
+  if (languageSub) languageSub.textContent = LANGUAGE_SETTING_SUB;
+  if (langSelect) {
+    Array.from(langSelect.options).forEach((option) => {
+      option.text = LANGUAGE_OPTION_LABELS[option.value] || option.value;
+    });
+  }
   if (fontSizeTitle) fontSizeTitle.textContent = t('fontSizeTitle');
   if (fontSizeSub) fontSizeSub.textContent = t('fontSizeSub');
   applyFontScaleSetting();
@@ -8902,6 +11721,9 @@ function syncI18nUI() {
   if (devSnowfallTitle) devSnowfallTitle.textContent = t('devSnowfall');
   if (devSnowfallSub) devSnowfallSub.textContent = t('devSnowfallSub');
   if (devSnowfallBtn) devSnowfallBtn.textContent = t('run');
+  if (devTutorialFinishTitle) devTutorialFinishTitle.textContent = t('devTutorialFinish');
+  if (devTutorialFinishSub) devTutorialFinishSub.textContent = t('devTutorialFinishSub');
+  if (devTutorialFinishBtn) devTutorialFinishBtn.textContent = t('run');
   if (themeTitle) themeTitle.textContent = t('theme');
   if (themeSub) themeSub.textContent = t('themeSub');
   if (handedTitle) handedTitle.textContent = t('handed');
@@ -8912,10 +11734,7 @@ function syncI18nUI() {
   if (selCopy) selCopy.textContent = t('copy');
   if (selShare) selShare.textContent = t('share');
   if (selDelete) selDelete.textContent = t('delete');
-  if (importModalTitle) importModalTitle.textContent = t('importCards');
-  if (importText) importText.placeholder = t('importCardsPlaceholder');
-  if (cancelImport) cancelImport.textContent = t('cancel');
-  if (confirmImport) confirmImport.textContent = t('import');
+  syncImportModalLabels();
   if (reorderModalTitle) reorderModalTitle.textContent = t('reorderCards');
   if (reorderModalSub) reorderModalSub.textContent = t('reorderCardsSub');
   if (cancelReorder) cancelReorder.textContent = t('cancel');
@@ -9017,14 +11836,7 @@ async function renderProjectList() {
 }
 
 async function captureProjectSnapshot(projectId) {
-  const targetId = String(projectId || 'default');
-  const activeId = getCurrentProject();
-  if (targetId !== activeId) setCurrentProject(targetId);
-  try {
-    return await exportProjectSnapshot();
-  } finally {
-    if (targetId !== activeId) setCurrentProject(activeId);
-  }
+  return exportProjectSnapshotForProject(String(projectId || 'default'));
 }
 
 async function copyTextToClipboard(text) {
@@ -9271,6 +12083,15 @@ async function saveProjectAsTemplate(projectId, fallbackName = '', presetName = 
   clearFeedbackSoon(1000);
 }
 
+async function requestSaveProjectAsTemplate(projectId, fallbackName = '', presetName = null) {
+  try {
+    await saveProjectAsTemplate(projectId, fallbackName, presetName);
+  } catch (error) {
+    feedback.textContent = `⚠ ${error?.message || t('error')}`;
+    clearFeedbackSoon(1800);
+  }
+}
+
 function renderTemplateList() {
   if (!templateList) return;
   const templates = readTemplates();
@@ -9281,7 +12102,7 @@ function renderTemplateList() {
 
   templateList.innerHTML = templates.map((tpl) => `
     <div class="panel-item panel-item-template" data-name="${escapeHtml(tpl.name)}" data-keywords="${escapeHtml(`template ${tpl.name}`)}">
-      <button class="btn install-btn panel-apply-template" data-id="${tpl.id}" type="button">${escapeHtml(tpl.name)}</button>
+      <div class="panel-item-name panel-template-name">${escapeHtml(tpl.name)}</div>
       <button
         class="btn install-btn panel-template-menu-toggle"
         data-id="${tpl.id}"
@@ -9421,6 +12242,7 @@ function openSidePanel() {
   renderTemplateList();
   renderCreateProjectModeControls();
   applyPanelSearchFilter();
+  sidePanel?.scrollTo({ top: 0, behavior: 'auto' });
   if (tutorialState.active) scheduleTutorialSpotlightPanelResync();
 }
 
@@ -9479,7 +12301,8 @@ function deleteDatabaseByName(name) {
 
 async function deleteProjectByIdWithConfirm(projectId, {
   kicker = t('projectsTitle'),
-  body = ''
+  body = '',
+  allowDismiss = true
 } = {}) {
   const id = String(projectId || '').trim();
   if (!id) return false;
@@ -9501,13 +12324,19 @@ async function deleteProjectByIdWithConfirm(projectId, {
   const dialogPromise = showDeleteConfirmDialog({
     kicker,
     title: t('confirmDeleteProject', project.name),
-    body
+    body,
+    allowDismiss
   });
   void notifyTutorialProgress('delete-dialog-opened', {
     projectId: id,
     name: project.name
   });
   const dialog = await dialogPromise;
+  await notifyTutorialProgress('delete-dialog-closed', {
+    projectId: id,
+    name: project.name,
+    confirmed: !!dialog.confirmed
+  });
   if (!dialog.confirmed) return false;
 
   return deleteProjectByIdSilently(id);
@@ -10050,7 +12879,8 @@ function showDeleteConfirmDialog({
   subtitle = '',
   body = '',
   details = [],
-  confirmLabel = t('delete')
+  confirmLabel = t('delete'),
+  allowDismiss = true
 } = {}) {
   return showActionDialog({
     variant: 'danger',
@@ -10061,7 +12891,8 @@ function showDeleteConfirmDialog({
     details,
     confirmTone: 'danger',
     confirmLabel,
-    cancelLabel: t('cancel')
+    cancelLabel: t('cancel'),
+    allowDismiss
   });
 }
 
@@ -10318,25 +13149,43 @@ sidePanel?.addEventListener('transitionend', (e) => {
 });
 
 selCancel?.addEventListener('click', () => {
+  if (!isTutorialSelectionBarActionAllowed('cancel')) return;
   exitSelectionMode();
   load();
 });
 
 selCopy?.addEventListener('click', async () => {
+  if (!isTutorialSelectionBarActionAllowed('copy')) return;
   if (!selectedGroupIds.size) return;
   const text = await buildSelectedCardsText();
   if (!text) return;
+
+  if (tutorialState.active && !isTutorialComplete()) {
+    tutorialState.clipboardPreviewText = text;
+    feedback.textContent = t('tutorialCopiedCardsPractice', selectedGroupIds.size);
+    clearFeedbackSoon(1300);
+    await notifyTutorialProgress('selected-customers-copied', {
+      projectId: getCurrentProject(),
+      count: selectedGroupIds.size
+    });
+    return;
+  }
 
   try {
     await copyTextToClipboard(text);
     feedback.textContent = t('copiedCards', selectedGroupIds.size);
     clearFeedbackSoon(1000);
+    await notifyTutorialProgress('selected-customers-copied', {
+      projectId: getCurrentProject(),
+      count: selectedGroupIds.size
+    });
   } catch (e) {
     feedback.textContent = '⚠ ' + (e?.message || t('error'));
   }
 });
 
 selShare?.addEventListener('click', async () => {
+  if (!isTutorialSelectionBarActionAllowed('share')) return;
   if (!selectedGroupIds.size) return;
   const text = await buildSelectedCardsText();
   if (!text) return;
@@ -10354,6 +13203,7 @@ selShare?.addEventListener('click', async () => {
 });
 
 selDelete?.addEventListener('click', async () => {
+  if (!isTutorialSelectionBarActionAllowed('delete')) return;
   if (!selectedGroupIds.size) return;
   const count = selectedGroupIds.size;
   const dialog = await showDeleteConfirmDialog({
@@ -10385,20 +13235,51 @@ selDelete?.addEventListener('click', async () => {
   await load();
 });
 
-function openImportModal() {
+function syncImportModalLabels(step = getCurrentTutorialStep()) {
+  if (importModalTitle) {
+    importModalTitle.textContent = isTutorialClipboardReviewStep(step)
+      ? (step?.title || getHelpCopy().tutorialStepPasteCopiedCustomersTitle)
+      : t('importCards');
+  }
+  if (importText) importText.placeholder = t('importCardsPlaceholder');
+  if (cancelImport) cancelImport.textContent = t('cancel');
+  if (confirmImport) confirmImport.textContent = t('import');
+  syncTutorialImportPreviewState(step);
+}
+
+function openImportModal({ clearValue = true, focus = true, value = null } = {}) {
   if (!importBackdrop) return;
   importBackdrop.classList.remove('hidden');
+  syncImportModalLabels();
   if (importText) {
-    importText.value = '';
-    importText.focus();
+    if (typeof value === 'string') {
+      importText.value = value;
+    } else if (clearValue) {
+      importText.value = '';
+    }
+    syncTutorialImportPreviewState();
+    scheduleTutorialImportPreviewFit();
+    if (focus && !importText.readOnly) importText.focus();
   }
 }
 
 function closeImportModal() {
   importBackdrop?.classList.add('hidden');
+  if (importText) {
+    importText.readOnly = false;
+    importText.setAttribute('aria-readonly', 'false');
+    importText.spellcheck = true;
+    importText.classList.remove('tutorial-import-preview');
+    importText.style.removeProperty('--tutorial-import-preview-font-size');
+  }
 }
 
-importScreenshotBtn?.addEventListener('click', () => {
+importScreenshotBtn?.addEventListener('click', async () => {
+  if (tutorialState.active && !isTutorialComplete() && getCurrentTutorialStep()?.id === 'open-screenshot-import-demo') {
+    openTutorialScreenshotPreview();
+    await advanceTutorialStep();
+    return;
+  }
   routeActionsMenuOpen = false;
   renderRouteActionsMenu();
   if (screenshotImportBusy) return;
@@ -10504,6 +13385,15 @@ importScreenshotInput?.addEventListener('change', async () => {
 
 importCardsBtn?.addEventListener('click', openImportModal);
 cancelImport?.addEventListener('click', closeImportModal);
+importText?.addEventListener('input', () => {
+  const value = String(importText.value || '').trim();
+  scheduleTutorialImportPreviewFit();
+  if (!value) return;
+  void notifyTutorialProgress('clipboard-review-pasted', {
+    projectId: getCurrentProject(),
+    textLength: value.length
+  });
+});
 importBackdrop?.addEventListener('click', (e) => {
   if (e.target === importBackdrop) closeImportModal();
 });
@@ -10549,15 +13439,22 @@ confirmImport?.addEventListener('click', async () => {
   }
 });
 
-function renderReorderList() {
+let reorderListRenderToken = 0;
+
+function renderReorderList({ preserveScrollTop = null, revealGroupId = null } = {}) {
   if (!reorderList) return;
-  reorderList.innerHTML = '';
+  const renderToken = ++reorderListRenderToken;
 
   getGroupsWithTotals().then(groups => {
+    if (!reorderList || renderToken !== reorderListRenderToken) return;
+
     const ordered = orderGroups(groups);
+    const fragment = document.createDocumentFragment();
+
     if (reorderModalMeta) {
       reorderModalMeta.textContent = ordered.length ? t('templateCustomerCount', ordered.length) : '';
     }
+
     for (let i = 0; i < ordered.length; i++) {
       const g = ordered[i];
       const disableUp = i === 0;
@@ -10574,7 +13471,21 @@ function renderReorderList() {
           <button type="button" class="reorder-move" data-dir="down" data-id="${g.id}" ${disableDown ? 'disabled' : ''} aria-label="${t('moveDown')}">▼</button>
         </div>
       `;
-      reorderList.appendChild(row);
+      fragment.appendChild(row);
+    }
+
+    reorderList.replaceChildren(fragment);
+
+    if (preserveScrollTop != null) {
+      reorderList.scrollTop = Math.max(0, Number(preserveScrollTop) || 0);
+    }
+
+    if (revealGroupId != null) {
+      reorderList.querySelector(`.reorder-item[data-id="${String(revealGroupId)}"]`)?.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+        behavior: 'auto'
+      });
     }
   });
 }
@@ -10585,6 +13496,9 @@ async function openReorderModal() {
   reorderInitialOrder = orderGroups(groups).map((g) => Number(g.id));
   renderReorderList();
   reorderBackdrop.classList.remove('hidden');
+  await notifyTutorialProgress('reorder-modal-opened', {
+    projectId: getCurrentProject()
+  });
 }
 
 function closeReorderModal() {
@@ -10597,6 +13511,9 @@ async function confirmReorderModal() {
   feedback.textContent = t('reordered');
   clearFeedbackSoon(1000);
   await load();
+  await notifyTutorialProgress('reorder-confirmed', {
+    projectId: getCurrentProject()
+  });
 }
 
 async function cancelReorderModal() {
@@ -10617,6 +13534,8 @@ reorderBackdrop?.addEventListener('click', (e) => {
     confirmReorderModal();
   }
 });
+getReorderModalPanel()?.addEventListener('scroll', scheduleTutorialSpotlightSync, { passive: true });
+reorderList?.addEventListener('scroll', scheduleTutorialSpotlightSync, { passive: true });
 
 let reorderInitialOrder = null;
 
@@ -10626,8 +13545,19 @@ reorderList?.addEventListener('click', (e) => {
   const id = Number(btn.dataset.id);
   const dir = btn.dataset.dir === 'up' ? 'up' : 'down';
   if (!Number.isFinite(id)) return;
+  const prevScrollTop = reorderList?.scrollTop ?? 0;
+  const groupName = String(btn.closest('.reorder-item')?.querySelector('.reorder-name')?.textContent || '').trim();
   moveGroupByStep(id, dir);
-  renderReorderList();
+  renderReorderList({
+    preserveScrollTop: prevScrollTop,
+    revealGroupId: id
+  });
+  void notifyTutorialProgress('reorder-moved', {
+    projectId: getCurrentProject(),
+    groupId: id,
+    groupName,
+    dir
+  });
 });
 
 saveReorder?.addEventListener('click', async () => {
@@ -10852,24 +13782,35 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeHelpModal();
 });
 tutorialRepeatBtn?.addEventListener('click', async () => {
-  if (isTutorialManualContinueStep()) {
-    await advanceTutorialStep();
-    return;
-  }
-  tutorialStepEnteredId = '';
-  await activateCurrentTutorialStep({ force: true });
+  if (!isTutorialManualContinueStep()) return;
+  await advanceTutorialStep();
 });
 tutorialGuideArrow?.addEventListener('click', () => {
   revealTutorialTarget({ behavior: 'smooth' });
 });
 tutorialEndBtn?.addEventListener('click', async () => {
   if (isTutorialComplete()) {
-    await stopTutorial({ cleanup: false, silent: true });
+    const reopenHelpOnFinish = !!tutorialState.reopenHelpOnFinish;
+    const animateFinishTransitionOut = tutorialState.completionVariant !== 'early-delete';
+    await stopTutorial({
+      cleanup: false,
+      silent: true,
+      animateFinishTransitionOut
+    });
+    if (reopenHelpOnFinish) {
+      openHelpModal({ tab: 'tutorial' });
+    }
     return;
   }
   await stopTutorial({ cleanup: true, silent: false });
 });
 document.addEventListener('click', (e) => {
+  if (!tutorialState.active || isTutorialComplete()) return;
+  if (isTutorialGuardAllowedTarget(e.target)) return;
+  e.preventDefault();
+  e.stopPropagation();
+}, true);
+document.addEventListener('pointerdown', (e) => {
   if (!tutorialState.active || isTutorialComplete()) return;
   if (isTutorialGuardAllowedTarget(e.target)) return;
   e.preventDefault();
@@ -11021,7 +13962,7 @@ function openSettings() {
   const settingsSection = sidePanelBackdrop?.querySelector('[data-title="settings"]');
   if (!settingsSection) return;
   applyPanelSearchFilter();
-  settingsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  sidePanel?.scrollTo({ top: 0, behavior: 'auto' });
   panelSettingsBtn?.classList.add('active');
   void notifyTutorialProgress('settings-opened', {
     projectId: getCurrentProject(),
@@ -11098,7 +14039,11 @@ sidePanelBackdrop?.addEventListener('click', (e) => {
   });
 });
 document.addEventListener('click', (e) => {
-  if (routeActionsMenuOpen && !e.target.closest('.sidepanel-route-actions-wrap')) {
+  if (
+    routeActionsMenuOpen
+    && !e.target.closest('.sidepanel-route-actions-wrap')
+    && !tutorialPanel?.contains(e.target)
+  ) {
     routeActionsMenuOpen = false;
     renderRouteActionsMenu();
   }
@@ -11120,10 +14065,18 @@ document.addEventListener('click', (e) => {
 routeActionsMenuBtn?.addEventListener('click', () => {
   routeActionsMenuOpen = !routeActionsMenuOpen;
   renderRouteActionsMenu();
+  void notifyTutorialProgress('route-actions-toggled', {
+    projectId: getCurrentProject(),
+    opened: routeActionsMenuOpen
+  });
 });
 routeActionsModeBtn?.addEventListener('click', () => {
   routeActionsMenuOpen = !routeActionsMenuOpen;
   renderRouteActionsMenu();
+  void notifyTutorialProgress('route-actions-toggled', {
+    projectId: getCurrentProject(),
+    opened: routeActionsMenuOpen
+  });
 });
 openCreateTemplateModalBtn?.addEventListener('click', () => {
   openTemplateCreateModal({
@@ -11160,6 +14113,8 @@ window.addEventListener('resize', scheduleTutorialSpotlightSync);
 window.addEventListener('orientationchange', scheduleTutorialSpotlightSync);
 window.visualViewport?.addEventListener('resize', scheduleTutorialSpotlightSync);
 window.visualViewport?.addEventListener('scroll', scheduleTutorialSpotlightSync);
+window.addEventListener('resize', scheduleTutorialImportPreviewFit);
+window.addEventListener('orientationchange', scheduleTutorialImportPreviewFit);
 window.addEventListener('resize', syncTutorialKeyboardMode);
 window.addEventListener('orientationchange', syncTutorialKeyboardMode);
 window.visualViewport?.addEventListener('resize', syncTutorialKeyboardMode);
@@ -11204,6 +14159,11 @@ devViewportSyncBtn?.addEventListener('click', () => {
 
 devSnowfallBtn?.addEventListener('click', () => {
   triggerDevSnowfall();
+});
+
+devTutorialFinishBtn?.addEventListener('click', async () => {
+  closeSidePanel();
+  await playTutorialFinishTransition();
 });
 
 exportRouteBtn?.addEventListener('click', async () => {
@@ -11314,7 +14274,7 @@ currentRouteTemplateBtn?.addEventListener('click', async () => {
   renderRouteActionsMenu();
   const currentRoute = getCurrentRouteRecord();
   if (!currentRoute) return;
-  await saveProjectAsTemplate(currentRoute.id, currentRoute.name || '');
+  await requestSaveProjectAsTemplate(currentRoute.id, currentRoute.name || '');
 });
 
 currentRouteDeleteBtn?.addEventListener('click', async () => {
@@ -11325,11 +14285,13 @@ currentRouteDeleteBtn?.addEventListener('click', async () => {
   if (!currentRoute) return;
   await deleteProjectByIdWithConfirm(currentRoute.id, {
     kicker: t('currentRoute'),
-    body: t('deleteRouteSub')
+    body: t('deleteRouteSub'),
+    allowDismiss: !(tutorialState.active && getCurrentTutorialStep()?.id === 'delete-route')
   });
 });
 
 startMultiSelectBtn?.addEventListener('click', async () => {
+  if (tutorialState.active && !isTutorialComplete()) return;
   routeActionsMenuOpen = false;
   renderRouteActionsMenu();
   const groups = orderGroups(await getGroupsWithTotals());
@@ -11533,10 +14495,14 @@ templateCreateName?.addEventListener('keydown', (e) => {
 });
 
 projectList?.addEventListener('click', async (e) => {
+  const tutorialReviewProjectDeleteOnly =
+    tutorialState.active &&
+    getCurrentTutorialStep()?.id === 'review-project';
   const menuToggleBtn = e.target.closest('.panel-project-menu-toggle');
   if (menuToggleBtn) {
     const id = menuToggleBtn.getAttribute('data-id');
     if (!id) return;
+    if (tutorialReviewProjectDeleteOnly && id !== tutorialState.projectId) return;
     openTemplateMenuId = null;
     openProjectMenuId = openProjectMenuId === id ? null : id;
     renderProjectList();
@@ -11554,6 +14520,7 @@ projectList?.addEventListener('click', async (e) => {
   const openBtn = e.target.closest('.panel-open-project');
   if (openBtn) {
     const id = openBtn.getAttribute('data-id');
+    if (tutorialReviewProjectDeleteOnly) return;
     if (id) {
       openProjectMenuId = null;
       await switchProject(id);
@@ -11566,6 +14533,7 @@ projectList?.addEventListener('click', async (e) => {
   const renameBtn = e.target.closest('.panel-rename-project');
   if (renameBtn) {
     const id = renameBtn.getAttribute('data-id');
+    if (tutorialReviewProjectDeleteOnly) return;
     if (!id) return;
     openProjectMenuId = null;
     renderProjectList();
@@ -11577,19 +14545,21 @@ projectList?.addEventListener('click', async (e) => {
   const saveTemplateItemBtn = e.target.closest('.panel-save-project-template');
   if (saveTemplateItemBtn) {
     const id = saveTemplateItemBtn.getAttribute('data-id');
+    if (tutorialReviewProjectDeleteOnly) return;
     if (!id) return;
     const projects = readProjects();
     const project = projects.find((p) => p.id === id);
     openProjectMenuId = null;
     renderProjectList();
     applyPanelSearchFilter();
-    await saveProjectAsTemplate(id, project?.name || '');
+    await requestSaveProjectAsTemplate(id, project?.name || '');
     return;
   }
 
   const historyBtn = e.target.closest('.panel-view-project-history');
   if (historyBtn) {
     const id = historyBtn.getAttribute('data-id');
+    if (tutorialReviewProjectDeleteOnly) return;
     if (!id) return;
     const project = readProjects().find((p) => p.id === id);
     openProjectMenuId = null;
@@ -11605,19 +14575,23 @@ projectList?.addEventListener('click', async (e) => {
   if (!deleteBtn) return;
   const id = deleteBtn.getAttribute('data-id');
   if (!id) return;
+  if (tutorialReviewProjectDeleteOnly && id !== tutorialState.projectId) return;
   const keepMenuOpen = tutorialState.active
     && getCurrentTutorialStep()?.id === 'delete-route'
     && id === tutorialState.projectId;
   openProjectMenuId = keepMenuOpen ? id : null;
   renderProjectList();
   applyPanelSearchFilter();
-  await deleteProjectByIdWithConfirm(id, { kicker: t('projectsTitle') });
+  await deleteProjectByIdWithConfirm(id, {
+    kicker: t('projectsTitle'),
+    allowDismiss: !(tutorialState.active && getCurrentTutorialStep()?.id === 'delete-route' && id === tutorialState.projectId)
+  });
 });
 
 saveTemplateBtn?.addEventListener('click', async () => {
   const name = String(templateName?.value || '').trim();
   if (!name) return;
-  await saveProjectAsTemplate(getCurrentProject(), '', name);
+  await requestSaveProjectAsTemplate(getCurrentProject(), '', name);
   if (templateName) templateName.value = '';
 });
 

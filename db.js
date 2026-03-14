@@ -217,6 +217,31 @@ export async function openDB() {
   });
 }
 
+function openProjectDB(projectId = currentProjectId) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(dbNameForProject(projectId), DB_VERSION);
+
+    req.onupgradeneeded = (e) => {
+      const openedDb = e.target.result;
+      if (!openedDb.objectStoreNames.contains('groups')) {
+        openedDb.createObjectStore('groups', { keyPath: 'id', autoIncrement: true });
+      }
+      let eventsStore = null;
+      if (!openedDb.objectStoreNames.contains('events')) {
+        eventsStore = openedDb.createObjectStore('events', { keyPath: 'id', autoIncrement: true });
+      } else {
+        eventsStore = e.target.transaction.objectStore('events');
+      }
+      if (e.oldVersion < 2 && eventsStore) {
+        migrateEventsStoreToCompact(eventsStore);
+      }
+    };
+
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 function store(name, mode = 'readonly') {
   return db.transaction(name, mode).objectStore(name);
 }
@@ -362,14 +387,28 @@ export async function getHistoryEvents({ groupId = null, limit = 500 } = {}) {
   return filtered.slice(0, Math.max(1, Number(limit) || 500));
 }
 
+async function exportSnapshotFromDb(targetDb) {
+  const tx = targetDb.transaction(['groups', 'events'], 'readonly');
+  const groups = await req(tx.objectStore('groups').getAll());
+  const events = (await req(tx.objectStore('events').getAll())).map(decodeEventRecord);
+  return {
+    groups: groups.map((group) => ({ ...group })),
+    events: events.map((event) => ({ ...event }))
+  };
+}
+
 export async function exportProjectSnapshot() {
   await openDB();
-  const groups = await req(store('groups').getAll());
-  const events = (await req(store('events').getAll())).map(decodeEventRecord);
-  return {
-    groups: groups.map(g => ({ ...g })),
-    events: events.map(e => ({ ...e }))
-  };
+  return exportSnapshotFromDb(db);
+}
+
+export async function exportProjectSnapshotForProject(projectId = currentProjectId) {
+  const projectDb = await openProjectDB(projectId);
+  try {
+    return await exportSnapshotFromDb(projectDb);
+  } finally {
+    try { projectDb.close(); } catch {}
+  }
 }
 
 export async function replaceProjectWithSnapshot(snapshot) {

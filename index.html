@@ -95,7 +95,7 @@
               <div id="exportRouteTitle" class="setting-title">Export customers</div>
               <div id="exportRouteSub" class="setting-sub">Copy all customer lines from this route to your clipboard</div>
             </div>
-            <button id="exportRouteBtn" class="btn install-btn" type="button">Export</button>
+            <button id="exportRouteBtn" class="btn install-btn" type="button">Alles kopieren</button>
           </div>
           <div class="setting-row route-action-row route-action-pinned" data-keywords="reorder customers volgorde">
             <div>
@@ -198,7 +198,7 @@
         </div>
 
         <select id="langSelect" class="select">
-          <option value="nl">Nederlands</option>
+          <option value="nl">Dutch</option>
           <option value="en">English</option>
         </select>
       </div>
@@ -343,6 +343,14 @@
         </div>
         <button id="devSnowfallBtn" class="btn install-btn" type="button">Run</button>
       </div>
+
+      <div class="setting-row" data-keywords="dev tutorial finish finale fullscreen animation count ready">
+        <div>
+          <div id="devTutorialFinishTitle" class="setting-title">Tutorial finish</div>
+          <div id="devTutorialFinishSub" class="setting-sub">Play the full tutorial finish animation in fullscreen</div>
+        </div>
+        <button id="devTutorialFinishBtn" class="btn install-btn" type="button">Run</button>
+      </div>
     </section>
   </aside>
 </div>
@@ -417,6 +425,26 @@
   </div>
 </div>
 
+<!-- Tutorial Screenshot Preview Modal -->
+<div id="tutorialScreenshotPreviewBackdrop" class="modal-backdrop hidden tutorial-screenshot-preview-backdrop">
+  <div id="tutorialScreenshotPreviewModal" class="modal tutorial-screenshot-preview-modal" role="dialog" aria-modal="true" aria-labelledby="tutorialScreenshotPreviewTitle">
+    <div class="tutorial-screenshot-preview-head">
+      <div id="tutorialScreenshotPreviewBadge" class="tutorial-screenshot-preview-badge">Voorbeeld</div>
+      <h3 id="tutorialScreenshotPreviewTitle">Screenshotvoorbeeld</h3>
+      <div id="tutorialScreenshotPreviewSub" class="tutorial-screenshot-preview-sub">Zo kan een screenshot uit de Bezorgbaas-app eruitzien voordat RoGo de klantnamen uitleest.</div>
+    </div>
+    <div class="tutorial-screenshot-preview-frame">
+      <img
+        id="tutorialScreenshotPreviewImg"
+        src="example/bezorgbaas%20route%204321.jpg"
+        alt="Voorbeeld van een Bezorgbaas-route screenshot"
+        loading="eager"
+        decoding="async"
+      />
+    </div>
+  </div>
+</div>
+
 <!-- Confirm Modal -->
 <div id="actionDialogBackdrop" class="modal-backdrop hidden">
   <div id="actionDialogModal" class="modal action-dialog-modal" role="dialog" aria-modal="true" aria-labelledby="actionDialogTitle">
@@ -450,7 +478,7 @@
       </div>
       <div class="reorder-hero-arrow"></div>
     </div>
-    <div class="reorder-kicker">Re-order</div>
+    <div id="reorderKicker" class="reorder-kicker">Reorder</div>
     <h3 id="reorderModalTitle">Re-order customers</h3>
     <div id="reorderModalSub" class="reorder-modal-sub"></div>
     <div id="reorderModalMeta" class="reorder-modal-meta"></div>
@@ -589,6 +617,31 @@
       <button id="tutorialRepeatBtn" class="btn install-btn" type="button">Repeat step</button>
       <button id="tutorialEndBtn" class="btn cancel-btn" type="button">End tutorial</button>
     </div>
+  </div>
+</div>
+
+<div id="tutorialFinishTransition" class="tutorial-finish-transition hidden" aria-hidden="true">
+  <div class="tutorial-finish-grid" aria-hidden="true"></div>
+  <div class="tutorial-finish-lanes" aria-hidden="true">
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+  <div id="tutorialFinishNameCloud" class="tutorial-finish-name-cloud" aria-hidden="true"></div>
+  <div id="tutorialFinishChipCloud" class="tutorial-finish-chip-cloud" aria-hidden="true"></div>
+  <div class="tutorial-finish-cards" aria-hidden="true">
+    <span class="tutorial-finish-card tutorial-finish-card-a"></span>
+    <span class="tutorial-finish-card tutorial-finish-card-b"></span>
+    <span class="tutorial-finish-card tutorial-finish-card-c"></span>
+  </div>
+  <div class="tutorial-finish-ghost" aria-hidden="true">100%</div>
+  <div class="tutorial-finish-copy" aria-live="polite">
+    <div id="tutorialFinishKicker" class="tutorial-finish-kicker">100% complete</div>
+    <h2 id="tutorialFinishTitle" class="tutorial-finish-title">You are ready to count</h2>
+    <p id="tutorialFinishBody" class="tutorial-finish-body"></p>
+    <div id="tutorialFinishFooter" class="tutorial-finish-footer"></div>
+    <div id="tutorialFinishFinal" class="tutorial-finish-final">Let's count</div>
   </div>
 </div>
 
