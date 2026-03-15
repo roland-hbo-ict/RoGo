@@ -96,6 +96,10 @@ const RESERVED_ALIAS_INPUTS = new Set(['kf', 'kv', 'rf', 'rv', 'epsf', 'epsv']);
 const VIEWPORT_KEYBOARD_OPEN_THRESHOLD_PX = 140;
 const VIEWPORT_LOCK_HOLD_MS = 420;
 const SELECTED_CARD_TOP_ALIGN_HOLD_MS = 520;
+const TUTORIAL_PANEL_SCROLL_SWITCH_DELTA_PX = 12;
+const TUTORIAL_PANEL_SIDE_TOP_MIN_OFFSET_PX = 28;
+const TUTORIAL_PANEL_SIDE_UP_TRAVEL_TO_BOTTOM_PX = 24;
+const TUTORIAL_PANEL_SIDE_DOWN_TRAVEL_TO_TOP_PX = 18;
 const RESET_HOLD_MS = 3000;
 const RESET_HOLD_MOVE_TOLERANCE_PX = 10;
 const IN_APP_CARD_TOP_GAP_PX = 8;
@@ -2000,6 +2004,57 @@ const TUTORIAL_MANUAL_CONTINUE_STEP_IDS = new Set([
 const TUTORIAL_CLIPBOARD_REVIEW_STEP_IDS = new Set([
   'paste-copied-customers',
   'review-pasted-customers'
+]);
+const TUTORIAL_SCROLL_DIRECTION_PANEL_STEP_IDS = new Set([
+  'paste-copied-customers',
+  'review-pasted-customers',
+  'review-screenshot-import-example',
+  'review-imported-screenshot-customers',
+  'review-reorder-modal',
+  'move-reordered-customer',
+  'save-reordered-customers',
+  'review-reordered-customers'
+]);
+const TUTORIAL_SIDE_PANEL_SCROLL_DIRECTION_STEP_IDS = new Set([
+  'create-project',
+  'review-project',
+  'open-settings-for-freezer',
+  'enable-freezer-feature',
+  'expand-route-options',
+  'review-expanded-route-options',
+  'open-reorder-customers',
+  'open-route-dots',
+  'delete-route',
+  'review-route-deleted',
+  'open-settings-for-final-freezer',
+  'final-freezer-choice',
+  'review-useful-settings',
+  'review-settings-overview'
+]);
+const TUTORIAL_ROUTE_SCROLL_DIRECTION_STEP_IDS = new Set([
+  'select-customer',
+  'select-mode',
+  'review-mode-selected',
+  'review-first-command',
+  'review-second-command',
+  'select-freezer-storage',
+  'review-freezer-command',
+  'select-second-customer',
+  'select-second-mode',
+  'review-second-customer-command',
+  'select-return-mode',
+  'review-return-command',
+  'rename-customer',
+  'review-renamed-customer',
+  'toggle-card-timestamp',
+  'review-card-timestamp',
+  'toggle-mini-history',
+  'review-mini-history',
+  'review-before-delete',
+  'start-multi-select-from-card',
+  'select-second-customer-for-copy',
+  'review-both-selected-customers',
+  'copy-selected-customers'
 ]);
 const TUTORIAL_MULTI_SELECT_START_STEP_IDS = new Set([
   'start-multi-select-from-card'
@@ -6213,6 +6268,12 @@ let tutorialSecondaryTargetEl = null;
 var tutorialSpotlightFrame = 0;
 let tutorialSpotlightSettleToken = 0;
 let tutorialStepSyncToken = 0;
+let tutorialPanelAutoScrollIgnoreUntil = 0;
+let tutorialPanelLastScrollOffset = 0;
+let tutorialPanelLastScrollStepId = '';
+let tutorialPanelScrollAnchorTop = false;
+let tutorialPanelScrollAnchorStepId = '';
+let tutorialPanelScrollAnchorPivotOffset = 0;
 let tutorialStepEnteredId = '';
 let tutorialCelebrationShown = false;
 let aliasSettingsOpen = false;
@@ -6240,6 +6301,12 @@ const TUTORIAL_SIDE_PANEL_REQUIRED_STEP_IDS = new Set([
   'review-route-deleted',
   'open-settings-for-final-freezer',
   'final-freezer-choice'
+]);
+const TUTORIAL_MOBILE_TOP_ANCHOR_STEP_IDS = new Set([
+  'review-route-action-multi-select',
+  'review-route-action-export',
+  'review-route-action-screenshot',
+  'open-screenshot-import-demo'
 ]);
 let tutorialState = {
   active: false,
@@ -9412,7 +9479,7 @@ function getTutorialSteps() {
         applyPanelSearchFilter();
         requestAnimationFrame(() => {
           getStartMultiSelectRouteActionRow()?.scrollIntoView({
-            block: 'center',
+            block: window.innerWidth <= 720 ? 'end' : 'center',
             inline: 'nearest',
             behavior: 'smooth'
           });
@@ -9443,7 +9510,7 @@ function getTutorialSteps() {
         applyPanelSearchFilter();
         requestAnimationFrame(() => {
           getExportRouteActionRow()?.scrollIntoView({
-            block: 'center',
+            block: window.innerWidth <= 720 ? 'end' : 'center',
             inline: 'nearest',
             behavior: 'smooth'
           });
@@ -9474,7 +9541,7 @@ function getTutorialSteps() {
         applyPanelSearchFilter();
         requestAnimationFrame(() => {
           getImportScreenshotRouteActionRow()?.scrollIntoView({
-            block: 'center',
+            block: window.innerWidth <= 720 ? 'end' : 'center',
             inline: 'nearest',
             behavior: 'smooth'
           });
@@ -9505,7 +9572,7 @@ function getTutorialSteps() {
         applyPanelSearchFilter();
         requestAnimationFrame(() => {
           getImportScreenshotRouteActionRow()?.scrollIntoView({
-            block: 'center',
+            block: window.innerWidth <= 720 ? 'end' : 'center',
             inline: 'nearest',
             behavior: 'smooth'
           });
@@ -10322,13 +10389,280 @@ function isTutorialCliTarget(target = resolveTutorialTarget()) {
   );
 }
 
+function getTutorialRectOverlapArea(a, b) {
+  if (!a || !b) return 0;
+  const width = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+  const height = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  return width * height;
+}
+
+function getTutorialRectGap(a, b) {
+  if (!a || !b) return Number.POSITIVE_INFINITY;
+  if (getTutorialRectOverlapArea(a, b) > 0) return 0;
+  const dx = Math.max(0, Math.max(b.left - a.right, a.left - b.right));
+  const dy = Math.max(0, Math.max(b.top - a.bottom, a.top - b.bottom));
+  return Math.sqrt((dx * dx) + (dy * dy));
+}
+
+function getTutorialPanelCandidateRect(viewport, panelRect, {
+  anchorTop = false,
+  keyboardCompact = false
+} = {}) {
+  if (!viewport || !panelRect?.width || !panelRect?.height) return null;
+  const mobile = viewport.width <= 720;
+  const verticalInset = keyboardCompact ? 8 : mobile ? 10 : 18;
+  const left = Math.round(panelRect.left);
+  const width = Math.round(panelRect.width);
+  const height = Math.round(panelRect.height);
+  const top = anchorTop
+    ? Math.round(viewport.top + verticalInset)
+    : Math.round(viewport.bottom - verticalInset - height);
+  return {
+    top,
+    left,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height
+  };
+}
+
+function getTutorialPanelProtectedRects(step, target, rect, viewport) {
+  const stepId = String(step?.id || '');
+  const rects = [];
+  const addRect = (candidate) => {
+    if (!candidate?.width || !candidate?.height) return;
+    const exists = rects.some((rectItem) => (
+      Math.abs(rectItem.top - candidate.top) < 1
+      && Math.abs(rectItem.left - candidate.left) < 1
+      && Math.abs(rectItem.width - candidate.width) < 1
+      && Math.abs(rectItem.height - candidate.height) < 1
+    ));
+    if (!exists) rects.push(candidate);
+  };
+
+  addRect(target?.getBoundingClientRect?.());
+
+  const viewportArea = Math.max(1, Number(viewport?.width || 0) * Number(viewport?.height || 0));
+  const rectArea = Math.max(0, Number(rect?.width || 0) * Number(rect?.height || 0));
+  if (rectArea && rectArea <= viewportArea * 0.72) {
+    addRect(rect);
+  }
+
+  if (stepId === 'paste-copied-customers' || stepId === 'review-pasted-customers') {
+    addRect(importText?.getBoundingClientRect?.());
+    addRect(getImportModalPanel()?.querySelector('.modal-actions')?.getBoundingClientRect?.());
+  }
+
+  if (stepId === 'review-screenshot-import-results') {
+    addRect(actionDialogConfirm?.getBoundingClientRect?.());
+    addRect(actionDialogCancel?.getBoundingClientRect?.());
+  }
+
+  if (stepId === 'copy-selected-customers' || stepId === 'review-both-selected-customers') {
+    addRect(document.getElementById('selectionBar')?.getBoundingClientRect?.());
+  }
+
+  if (
+    stepId === 'review-route-action-multi-select'
+    || stepId === 'review-route-action-export'
+    || stepId === 'review-route-action-screenshot'
+    || stepId === 'open-screenshot-import-demo'
+  ) {
+    addRect(resolveTutorialTarget(step)?.getBoundingClientRect?.());
+  }
+
+  return rects;
+}
+
+function getTutorialPanelPlacementScore(candidateRect, protectedRects = []) {
+  let overlapArea = 0;
+  let minGap = Number.POSITIVE_INFINITY;
+  for (const protectedRect of protectedRects) {
+    const overlap = getTutorialRectOverlapArea(candidateRect, protectedRect);
+    overlapArea += overlap;
+    if (!overlap) {
+      minGap = Math.min(minGap, getTutorialRectGap(candidateRect, protectedRect));
+    }
+  }
+  return {
+    overlapArea,
+    minGap
+  };
+}
+
+function beginTutorialPanelAutoScrollIgnore(ms = 900) {
+  tutorialPanelAutoScrollIgnoreUntil = Math.max(
+    tutorialPanelAutoScrollIgnoreUntil,
+    Date.now() + Math.max(0, Number(ms) || 0)
+  );
+}
+
+function tutorialStepAllowsScrollAnchorSwitch(step = getCurrentTutorialStep()) {
+  const stepId = typeof step === 'string' ? step : step?.id;
+  if (!stepId) return false;
+  return (
+    TUTORIAL_SCROLL_DIRECTION_PANEL_STEP_IDS.has(String(stepId))
+    || TUTORIAL_SIDE_PANEL_SCROLL_DIRECTION_STEP_IDS.has(String(stepId))
+    || TUTORIAL_ROUTE_SCROLL_DIRECTION_STEP_IDS.has(String(stepId))
+  );
+}
+
+function getTutorialPanelDefaultAnchorTop(step = getCurrentTutorialStep()) {
+  const stepId = typeof step === 'string' ? step : step?.id;
+  if (!stepId) return false;
+  if (isTutorialCliCommandStep(step)) return true;
+  if (stepId === 'review-screenshot-import-results') return true;
+  if (TUTORIAL_MOBILE_TOP_ANCHOR_STEP_IDS.has(String(stepId))) return true;
+  if (tutorialStepAllowsScrollAnchorSwitch(step)) return false;
+  return false;
+}
+
+function getTutorialPanelScrollOffset(step = getCurrentTutorialStep(), { requireUserScroll = false } = {}) {
+  if (Date.now() < tutorialPanelAutoScrollIgnoreUntil) return 0;
+  const stepId = typeof step === 'string' ? step : step?.id;
+  if (!stepId) return 0;
+  if (requireUserScroll && tutorialPanelScrollAnchorStepId !== String(stepId)) return 0;
+
+  if (TUTORIAL_SIDE_PANEL_REQUIRED_STEP_IDS.has(stepId)) {
+    return Math.max(0, Number(sidePanel?.scrollTop || 0));
+  }
+
+  if (stepId === 'paste-copied-customers' || stepId === 'review-pasted-customers') {
+    return Math.max(0, Number(importText?.scrollTop || 0));
+  }
+
+  if (
+    stepId === 'review-reorder-modal'
+    || stepId === 'move-reordered-customer'
+    || stepId === 'save-reordered-customers'
+  ) {
+    return Math.max(
+      0,
+      Number(reorderList?.scrollTop || 0),
+      Number(getReorderModalPanel()?.scrollTop || 0)
+    );
+  }
+
+  if (stepId === 'review-screenshot-import-example') {
+    return Math.max(0, Number(tutorialScreenshotPreviewModal?.scrollTop || 0));
+  }
+
+  if (stepId === 'review-screenshot-import-results') {
+    return Math.max(0, Number(actionDialogModal?.scrollTop || 0));
+  }
+
+  if (TUTORIAL_ROUTE_SCROLL_DIRECTION_STEP_IDS.has(String(stepId || ''))) {
+    return Math.max(0, Number(window.scrollY || window.pageYOffset || 0));
+  }
+
+  return Math.max(
+    0,
+    Number(list?.scrollTop || 0),
+    Number(appRoot?.scrollTop || 0),
+    Number(window.scrollY || window.pageYOffset || 0)
+  );
+}
+
+function syncTutorialSidePanelScrollAnchor(offset, delta, stepId) {
+  tutorialPanelScrollAnchorStepId = String(stepId);
+  if (tutorialPanelScrollAnchorTop) {
+    tutorialPanelScrollAnchorPivotOffset = Math.max(tutorialPanelScrollAnchorPivotOffset, offset);
+    if (delta < 0 && (tutorialPanelScrollAnchorPivotOffset - offset) >= TUTORIAL_PANEL_SIDE_UP_TRAVEL_TO_BOTTOM_PX) {
+      tutorialPanelScrollAnchorTop = false;
+      tutorialPanelScrollAnchorPivotOffset = offset;
+    }
+    return;
+  }
+
+  if (delta < 0) {
+    tutorialPanelScrollAnchorPivotOffset = offset;
+    return;
+  }
+
+  if (delta <= 0) return;
+  const nextTopThreshold = Math.max(
+    TUTORIAL_PANEL_SIDE_TOP_MIN_OFFSET_PX,
+    tutorialPanelScrollAnchorPivotOffset + TUTORIAL_PANEL_SIDE_DOWN_TRAVEL_TO_TOP_PX
+  );
+  if (offset >= nextTopThreshold) {
+    tutorialPanelScrollAnchorTop = true;
+    tutorialPanelScrollAnchorPivotOffset = offset;
+  }
+}
+
+function syncTutorialPanelUserScrollState(step = getCurrentTutorialStep()) {
+  if (!tutorialState.active) return;
+  const stepId = typeof step === 'string' ? step : step?.id;
+  if (!stepId) return;
+
+  const offset = getTutorialPanelScrollOffset(step);
+  if (tutorialPanelLastScrollStepId !== String(stepId)) {
+    tutorialPanelLastScrollStepId = String(stepId);
+    tutorialPanelLastScrollOffset = offset;
+    tutorialPanelScrollAnchorStepId = String(stepId);
+    tutorialPanelScrollAnchorTop = getTutorialPanelDefaultAnchorTop(step);
+    tutorialPanelScrollAnchorPivotOffset = offset;
+    return;
+  }
+
+  const delta = offset - tutorialPanelLastScrollOffset;
+  tutorialPanelLastScrollOffset = offset;
+
+  if (Date.now() < tutorialPanelAutoScrollIgnoreUntil) return;
+  if (!tutorialStepAllowsScrollAnchorSwitch(step)) return;
+  if (TUTORIAL_SIDE_PANEL_SCROLL_DIRECTION_STEP_IDS.has(String(stepId))) {
+    syncTutorialSidePanelScrollAnchor(offset, delta, stepId);
+    return;
+  }
+  if (Math.abs(delta) < TUTORIAL_PANEL_SCROLL_SWITCH_DELTA_PX) return;
+
+  tutorialPanelScrollAnchorStepId = String(stepId);
+  tutorialPanelScrollAnchorTop = delta > 0;
+}
+
 function shouldTutorialPanelAnchorTop(step, target, viewport, rect, {
   panelRect,
   keyboardCompact = false
 } = {}) {
   if (!step || !target || !viewport || !rect || !panelRect) return false;
+  if (isTutorialCliCommandStep(step)) return true;
 
   const mobile = viewport.width <= 720;
+  if (mobile) {
+    const stepId = String(step.id || '');
+    if (stepId === 'review-screenshot-import-results') return true;
+    if (TUTORIAL_MOBILE_TOP_ANCHOR_STEP_IDS.has(stepId)) return true;
+    if (tutorialStepAllowsScrollAnchorSwitch(step)) {
+      if (tutorialPanelScrollAnchorStepId === stepId) return tutorialPanelScrollAnchorTop;
+      return getTutorialPanelDefaultAnchorTop(step);
+    }
+
+    const protectedRects = getTutorialPanelProtectedRects(step, target, rect, viewport);
+    const topCandidate = getTutorialPanelCandidateRect(viewport, panelRect, {
+      anchorTop: true,
+      keyboardCompact
+    });
+    const bottomCandidate = getTutorialPanelCandidateRect(viewport, panelRect, {
+      anchorTop: false,
+      keyboardCompact
+    });
+    const topScore = getTutorialPanelPlacementScore(topCandidate, protectedRects);
+    const bottomScore = getTutorialPanelPlacementScore(bottomCandidate, protectedRects);
+
+    if (topScore.overlapArea !== bottomScore.overlapArea) {
+      return topScore.overlapArea < bottomScore.overlapArea;
+    }
+
+    if (Number.isFinite(topScore.minGap) || Number.isFinite(bottomScore.minGap)) {
+      const safeTopGap = Number.isFinite(topScore.minGap) ? topScore.minGap : -1;
+      const safeBottomGap = Number.isFinite(bottomScore.minGap) ? bottomScore.minGap : -1;
+      if (safeTopGap !== safeBottomGap) {
+        return safeTopGap > safeBottomGap;
+      }
+    }
+
+  }
   const edgeInset = mobile ? 10 : 18;
   const targetCenterY = rect.top + (rect.height / 2);
   const roomAbove = Math.max(0, rect.top - viewport.top - edgeInset);
@@ -10628,6 +10962,8 @@ function syncTutorialSpotlight() {
     return;
   }
 
+  syncTutorialPanelUserScrollState(step);
+
   if (tutorialPanel) {
     const panelRect = tutorialPanel.getBoundingClientRect();
     const shouldAnchorTop = shouldTutorialPanelAnchorTop(step, target, viewport, rect, {
@@ -10776,12 +11112,13 @@ function renderTutorialOverlay() {
   const tutorialContinueCta = isTutorialManualContinueStep(step) && step.id !== 'complete';
   const animatedFinishActive = shouldUseAnimatedTutorialFinish(step);
   const hidePanelForFinishTransition = animatedFinishActive && !tutorialFinishPanelVisible;
+  const hidePanelForScreenshotRead = step.id === 'read-screenshot-import-demo' && !tutorialState.screenshotImportReadReady;
   tutorialRepeatBtn.textContent = copy.tutorialContinue;
   tutorialRepeatBtn.style.display = tutorialContinueCta ? '' : 'none';
   tutorialRepeatBtn.classList.toggle('is-continue-cta', tutorialContinueCta);
   tutorialEndBtn.textContent = step.id === 'complete' ? copy.finishTutorial : copy.endTutorial;
   tutorialPanel.classList.toggle('is-complete', step.id === 'complete');
-  tutorialPanel.classList.toggle('is-finish-hidden', hidePanelForFinishTransition);
+  tutorialPanel.classList.toggle('is-finish-hidden', hidePanelForFinishTransition || hidePanelForScreenshotRead);
   tutorialPanel.classList.toggle('is-finish-reveal', animatedFinishActive && tutorialFinishPanelVisible);
   if (tutorialFinishTransition) {
     const finishPanelVisible = animatedFinishActive && tutorialFinishPanelVisible;
@@ -10814,6 +11151,12 @@ async function activateCurrentTutorialStep({ force = false } = {}) {
 
   if (shouldEnter) {
     tutorialStepEnteredId = step.id;
+    tutorialPanelLastScrollOffset = 0;
+    tutorialPanelLastScrollStepId = '';
+    tutorialPanelScrollAnchorTop = getTutorialPanelDefaultAnchorTop(step);
+    tutorialPanelScrollAnchorStepId = String(step.id || '');
+    tutorialPanelScrollAnchorPivotOffset = 0;
+    beginTutorialPanelAutoScrollIgnore();
     if (animatedFinishActive) {
       tutorialFinishSequenceStarted = false;
       tutorialFinishPanelVisible = false;
@@ -10821,6 +11164,7 @@ async function activateCurrentTutorialStep({ force = false } = {}) {
     }
     await step.onEnter?.();
     if (token !== tutorialStepSyncToken) return;
+    beginTutorialPanelAutoScrollIgnore();
   }
 
   if (isTutorialComplete() && !tutorialCelebrationShown) {
@@ -11248,6 +11592,12 @@ async function startTutorial({ restart = false } = {}) {
   };
   tutorialStepEnteredId = '';
   tutorialCelebrationShown = false;
+  tutorialPanelAutoScrollIgnoreUntil = 0;
+  tutorialPanelLastScrollOffset = 0;
+  tutorialPanelLastScrollStepId = '';
+  tutorialPanelScrollAnchorTop = false;
+  tutorialPanelScrollAnchorStepId = '';
+  tutorialPanelScrollAnchorPivotOffset = 0;
   syncResetHoldButtonUI();
   closeHelpModal();
   closeImportModal();
@@ -11258,6 +11608,16 @@ async function startTutorial({ restart = false } = {}) {
 
 async function stopTutorial({ cleanup = true, silent = false, animateFinishTransitionOut = false } = {}) {
   const prevState = { ...tutorialState };
+  const shouldAnimateVisibleFinishTransition = !!(
+    animateFinishTransitionOut
+    && tutorialFinishTransition
+    && !tutorialFinishTransition.classList.contains('hidden')
+  );
+
+  if (shouldAnimateVisibleFinishTransition) {
+    await hideTutorialFinishTransition({ animate: true });
+  }
+
   tutorialState = {
     active: false,
     stepIndex: 0,
@@ -11283,6 +11643,12 @@ async function stopTutorial({ cleanup = true, silent = false, animateFinishTrans
   tutorialSpotlightSettleToken += 1;
   tutorialFinishSequenceStarted = false;
   tutorialFinishPanelVisible = false;
+  tutorialPanelAutoScrollIgnoreUntil = 0;
+  tutorialPanelLastScrollOffset = 0;
+  tutorialPanelLastScrollStepId = '';
+  tutorialPanelScrollAnchorTop = false;
+  tutorialPanelScrollAnchorStepId = '';
+  tutorialPanelScrollAnchorPivotOffset = 0;
   syncResetHoldButtonUI();
   syncTutorialStepBodyClass(null);
   syncImportModalLabels(null);
@@ -11296,7 +11662,9 @@ async function stopTutorial({ cleanup = true, silent = false, animateFinishTrans
   closeTutorialScreenshotImportDemoUi();
   closeSidePanel();
   exitSelectionMode();
-  await hideTutorialFinishTransition({ animate: animateFinishTransitionOut });
+  if (!shouldAnimateVisibleFinishTransition) {
+    await hideTutorialFinishTransition({ animate: false });
+  }
 
   if (cleanup && prevState.projectId && readProjects().length > 1 && tutorialRouteExists(prevState.projectId)) {
     await deleteProjectByIdSilently(prevState.projectId, {
@@ -13536,6 +13904,7 @@ reorderBackdrop?.addEventListener('click', (e) => {
 });
 getReorderModalPanel()?.addEventListener('scroll', scheduleTutorialSpotlightSync, { passive: true });
 reorderList?.addEventListener('scroll', scheduleTutorialSpotlightSync, { passive: true });
+importText?.addEventListener('scroll', scheduleTutorialSpotlightSync, { passive: true });
 
 let reorderInitialOrder = null;
 

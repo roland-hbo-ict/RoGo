@@ -763,11 +763,13 @@ body.tutorial-step-clipboard-review #importText {
   resize: none;
   font-size: var(--tutorial-import-preview-font-size, clamp(14px, 2.4vw, 20px));
   line-height: 1.45;
-  touch-action: pinch-zoom;
+  touch-action: pan-x pan-y pinch-zoom;
   user-select: text;
   -webkit-user-select: text;
   caret-color: transparent;
+  pointer-events: auto;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 body.tutorial-step-review-pasted-customers #importText {
