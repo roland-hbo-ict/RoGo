@@ -58,6 +58,7 @@ let selectedGroupIds = new Set();
 let suppressClickUntil = 0;
 let longPressTimer = null;
 let longPressData = null;
+let lastCardTap = null;
 let historyTimeMode = 'relative';
 let historyInputMode = 'total';
 let historyRefreshTimer = null;
@@ -101,6 +102,7 @@ const TUTORIAL_PANEL_SIDE_TOP_MIN_OFFSET_PX = 28;
 const TUTORIAL_PANEL_SIDE_UP_TRAVEL_TO_BOTTOM_PX = 24;
 const TUTORIAL_PANEL_SIDE_DOWN_TRAVEL_TO_TOP_PX = 18;
 const RESET_HOLD_MS = 3000;
+const CARD_DOUBLE_TAP_INTERVAL_MS = 450;
 const RESET_HOLD_MOVE_TOLERANCE_PX = 10;
 const IN_APP_CARD_TOP_GAP_PX = 8;
 const IN_APP_CARD_TOP_ALIGN_EPSILON_PX = 1;
@@ -1226,7 +1228,7 @@ const HELP_COPY = {
       {
         badge: 'Naam wijzigen',
         title: 'Kaart eerst selecteren, daarna pas bewerken',
-        body: 'Dit is bewust zo gemaakt om mis-tikken te voorkomen. De eerste tik zegt alleen: deze kaart is actief. Pas de tweede tik op de naam opent echt het bewerken.'
+        body: 'Tik 2 keer snel op het kaartgedeelte om de compacte Geleverd/Retour-regel te kopiëren. Op de naam geldt een aparte bediening: de eerste tik selecteert de kaart en de tweede opent bewerken.'
       },
       {
         badge: 'Volgorde',
@@ -1892,7 +1894,7 @@ const HELP_COPY = {
       {
         badge: 'Rename',
         title: 'Select the card first, then edit',
-        body: 'This is intentionally designed to reduce mis-taps. The first tap only says: this card is active. Only the second tap on the name actually opens editing.'
+        body: 'Quickly double-tap the card body to copy its compact Delivered/Return line. The name has separate behavior: the first tap selects the card and the second opens editing.'
       },
       {
         badge: 'Order',
@@ -3116,6 +3118,50 @@ function buildCardExportText(group) {
   }, defs)}\n\n${t('returned')}:\n${buildTotalsTextLines(group?.retour, defs, { includeRef: false }).join('\n') || '-'}`;
 }
 
+
+function compactCardName(name) {
+  const characters = Array.from(String(name || '').trim().toLowerCase())
+    .filter((character) => /[\p{L}\p{N}]/u.test(character))
+    .slice(0, 3);
+  return characters.join('') || '?';
+}
+
+function formatCompactCardModeTotals(totals, defs) {
+  const parts = TOKEN_ORDER
+    .map((tokenId) => {
+      const quantity = Number(totals?.[tokenId] || 0);
+      if (!Number.isFinite(quantity) || quantity === 0) return '';
+      return `${quantity}${displayKey(defs, tokenId)}`;
+    })
+    .filter(Boolean);
+  return parts.join(' ') || '-';
+}
+
+function buildCompactCardSummary(group) {
+  const defs = getTokenDefs();
+  const deliveredTotals = sumTotals(
+    group?.storage?.main?.geleverd,
+    group?.storage?.freezer?.geleverd
+  );
+  const name = compactCardName(group?.name);
+  const delivered = formatCompactCardModeTotals(deliveredTotals, defs);
+  const returned = formatCompactCardModeTotals(group?.retour, defs);
+  return `${name} ${delivered} | ${returned}`;
+}
+
+async function copyCompactCardSummary(groupId) {
+  try {
+    const groups = await getGroupsWithTotals();
+    const group = groups.find((item) => Number(item.id) === Number(groupId));
+    if (!group) return;
+
+    await copyTextToClipboard(JSON.stringify([buildCompactCardSummary(group)]));
+    feedback.textContent = t('copiedCards', 1);
+    clearFeedbackSoon(1000);
+  } catch (error) {
+    feedback.textContent = '⚠ ' + (error?.message || t('error'));
+  }
+}
 function parseImportSection(sectionText, defs) {
   const out = Object.fromEntries(TOKEN_ORDER.map(k => [k, 0]));
   const byName = new Map(
@@ -4675,7 +4721,7 @@ function renderAllTotalsSummary(groups) {
     .map(k => {
       const g = Number(geleverd[k] || 0);
       const r = Number(retour[k] || 0);
-      const d = g - r;
+      const d = r - g;
       sumG += g;
       sumR += r;
 
@@ -4691,7 +4737,7 @@ function renderAllTotalsSummary(groups) {
     .join('');
 
   if (!lines) return '';
-  const sumD = sumG - sumR;
+  const sumD = sumR - sumG;
 
   return `
     <div class="all-totals ${collapsed ? 'collapsed' : ''}">
@@ -5237,6 +5283,7 @@ list.addEventListener('click', e => {
   }
 
   if (e.target.closest('.all-totals-top')) {
+    lastCardTap = null;
     e.preventDefault();
     setAllTotalsCollapsed(!isAllTotalsCollapsed());
     load();
@@ -5244,11 +5291,37 @@ list.addEventListener('click', e => {
   }
 
   if (e.target.closest('.mini-history') || e.target.closest('.group-modified')) {
+    lastCardTap = null;
     e.preventDefault();
     return;
   }
 
   const clickedCard = e.target.closest('.group');
+  const canCopyCard =
+    !selectionMode &&
+    clickedCard &&
+    !clickedCard.classList.contains('new-group') &&
+    (!tutorialState.active || isTutorialComplete()) &&
+    !isCardDoubleTapCopyExcludedTarget(e.target);
+  if (canCopyCard) {
+    const cardId = Number(clickedCard.dataset.id);
+    const tappedAt = Date.now();
+    if (
+      Number.isFinite(cardId) &&
+      lastCardTap?.cardId === cardId &&
+      tappedAt - lastCardTap.at <= CARD_DOUBLE_TAP_INTERVAL_MS
+    ) {
+      lastCardTap = null;
+      e.preventDefault();
+      e.stopPropagation();
+      void copyCompactCardSummary(cardId);
+      return;
+    }
+    lastCardTap = Number.isFinite(cardId) ? { cardId, at: tappedAt } : null;
+  } else {
+    lastCardTap = null;
+  }
+
   if (selectionMode && clickedCard && !clickedCard.classList.contains('new-group')) {
     const cardId = Number(clickedCard.dataset.id);
     if (!Number.isFinite(cardId)) return;
@@ -5435,6 +5508,13 @@ function isCardLongPressExcludedTarget(target) {
   if (target.closest('.history-value-toggle')) return false;
   return !!target.closest(
     '.mode, .storage-chip, .group-title-input, #newGroupInput, button, input, textarea, select'
+  );
+}
+
+function isCardDoubleTapCopyExcludedTarget(target) {
+  if (!(target instanceof Element)) return true;
+  return !!target.closest(
+    '.group-title-display, .group-title-input, .mode, .storage-chip, button, input, textarea, select'
   );
 }
 
